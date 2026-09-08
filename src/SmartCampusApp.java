@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  * SmartCampus AI -- Core Server
  *
  * Study & Career Intelligence Platform
- * - Dual Engine: Live Google Gemini AI + Offline Heuristic Analyzer
+ * - Live Google Gemini AI Engine
  * - REST API on port 8080
  */
 public class SmartCampusApp {
@@ -97,15 +97,14 @@ public class SmartCampusApp {
         public void handle(HttpExchange exchange) throws IOException {
             String json = "{"
                     + "\"status\":\"ONLINE\","
-                    + "\"hasApiKey\":" + (!globalGeminiKey.isBlank()) + ","
-                    + "\"mode\":\"" + (!globalGeminiKey.isBlank() ? "LIVE AI" : "OFFLINE") + "\""
+                    + "\"hasApiKey\":" + (!globalGeminiKey.isBlank())
                     + "}";
             sendJsonResponse(exchange, 200, json);
         }
     }
 
     // =========================================================================
-    // Academic Study Q&A Handler
+    // Academic Study Q&A Handler (100% Live Gemini AI)
     // =========================================================================
     static class StudyAskHandler implements HttpHandler {
         @Override
@@ -121,29 +120,28 @@ public class SmartCampusApp {
             String apiKey = extractJsonField(body, "apiKey");
             if (apiKey.isBlank()) apiKey = globalGeminiKey;
 
-            String answer;
-            if (!apiKey.isBlank()) {
-                try {
-                    String prompt = "You are an expert technical tutor and study assistant. Answer the question clearly, thoroughly, and accurately based on the study notes below.\n"
-                            + "Provide a direct answer followed by bullet points and highlight key technical terms.\n\n"
-                            + "STUDY NOTES:\n" + (notes.isBlank() ? "Key technical concepts and architecture" : notes) + "\n\n"
-                            + "QUESTION:\n" + question;
-                    answer = callGeminiApi(apiKey, prompt);
-                } catch (Exception e) {
-                    System.err.println("Gemini API call failed, using intelligent fallback: " + e.getMessage());
-                    answer = generateHeuristicStudyAnswer(question, notes);
-                }
-            } else {
-                answer = generateHeuristicStudyAnswer(question, notes);
+            if (apiKey.isBlank()) {
+                sendJsonResponse(exchange, 200, "{\"answer\":\"Please provide a valid Google Gemini API key to ask questions. Click 'Gemini API Key' above to enter your key.\"}");
+                return;
             }
 
-            String responseJson = "{\"answer\":\"" + escapeJson(answer) + "\"}";
-            sendJsonResponse(exchange, 200, responseJson);
+            try {
+                String prompt = "You are an expert technical tutor and study assistant. "
+                        + "Answer the user's question clearly, thoroughly, and accurately based on the study notes below.\n"
+                        + "Use clear formatting, bold terms, and structured bullet points.\n\n"
+                        + "STUDY NOTES:\n" + (notes.isBlank() ? "No notes provided." : notes) + "\n\n"
+                        + "QUESTION:\n" + question;
+                String answer = callGeminiApi(apiKey, prompt);
+                sendJsonResponse(exchange, 200, "{\"answer\":\"" + escapeJson(answer) + "\"}");
+            } catch (Exception e) {
+                System.err.println("Gemini API call failed: " + e.getMessage());
+                sendJsonResponse(exchange, 200, "{\"answer\":\"Gemini API Error: " + escapeJson(e.getMessage()) + ". Please verify your API key.\"}");
+            }
         }
     }
 
     // =========================================================================
-    // Revision Quiz & Flashcard Generator Handler
+    // Revision Quiz & Flashcard Generator Handler (100% Live Gemini AI)
     // =========================================================================
     static class StudyQuizHandler implements HttpHandler {
         @Override
@@ -158,32 +156,28 @@ public class SmartCampusApp {
             String apiKey = extractJsonField(body, "apiKey");
             if (apiKey.isBlank()) apiKey = globalGeminiKey;
 
-            String responseJson;
-            if (!apiKey.isBlank()) {
-                try {
-                    String prompt = "Create 3 high-quality multiple-choice questions (MCQs) for revision based strictly on the following study notes.\n"
-                            + "Respond strictly with valid JSON without markdown code blocks, using this exact structure:\n"
-                            + "{\"questions\":[{\"question\":\"question text\",\"options\":[\"option A\",\"option B\",\"option C\",\"option D\"],\"correctAnswerIndex\":0,\"explanation\":\"why this answer is correct\"}]}\n\n"
-                            + "STUDY NOTES:\n" + (notes.isBlank() ? "Key concepts and technical principles" : notes);
-                    String raw = callGeminiApi(apiKey, prompt);
-                    responseJson = cleanJsonOutput(raw);
-                    if (!responseJson.contains("\"questions\"") || !responseJson.contains("\"options\"")) {
-                        responseJson = generateHeuristicQuizJson(notes);
-                    }
-                } catch (Exception e) {
-                    System.err.println("Gemini quiz generation failed, using dynamic heuristic engine: " + e.getMessage());
-                    responseJson = generateHeuristicQuizJson(notes);
-                }
-            } else {
-                responseJson = generateHeuristicQuizJson(notes);
+            if (apiKey.isBlank()) {
+                sendJsonResponse(exchange, 200, "{\"error\":\"Please configure your Google Gemini API key to generate quizzes with AI.\"}");
+                return;
             }
 
-            sendJsonResponse(exchange, 200, responseJson);
+            try {
+                String prompt = "Create 3 high-quality multiple-choice questions (MCQs) for revision based strictly on the following study notes.\n"
+                        + "Respond strictly with valid JSON without markdown code blocks, using this exact structure:\n"
+                        + "{\"questions\":[{\"question\":\"question text\",\"options\":[\"option A\",\"option B\",\"option C\",\"option D\"],\"correctAnswerIndex\":0,\"explanation\":\"why this answer is correct\"}]}\n\n"
+                        + "STUDY NOTES:\n" + (notes.isBlank() ? "Key concepts and technical principles" : notes);
+                String raw = callGeminiApi(apiKey, prompt);
+                String responseJson = cleanJsonOutput(raw);
+                sendJsonResponse(exchange, 200, responseJson);
+            } catch (Exception e) {
+                System.err.println("Gemini quiz generation failed: " + e.getMessage());
+                sendJsonResponse(exchange, 200, "{\"error\":\"Gemini API Error: " + escapeJson(e.getMessage()) + "\"}");
+            }
         }
     }
 
     // =========================================================================
-    // Career & Placement Gap Analyzer Handler
+    // Career & Placement Gap Analyzer Handler (100% Live Gemini AI)
     // =========================================================================
     static class CareerAnalyzeHandler implements HttpHandler {
         @Override
@@ -200,49 +194,49 @@ public class SmartCampusApp {
             String apiKey = extractJsonField(body, "apiKey");
             if (apiKey.isBlank()) apiKey = globalGeminiKey;
 
-            String responseJson;
-            if (!apiKey.isBlank()) {
-                try {
-                    String prompt = "You are an expert tech recruiter, ATS specialist, and senior hiring manager. "
-                            + "Analyze this candidate resume against the Target Role: '" + targetRole + "' and Job Description: '" + jobDescription + "'.\n"
-                            + "Respond strictly with valid JSON without markdown code blocks using this exact format:\n"
-                            + "{\n"
-                            + "  \"score\": 85,\n"
-                            + "  \"atsScore\": 82,\n"
-                            + "  \"breakdown\": {\"keywords\": 78, \"impact\": 74, \"formatting\": 92},\n"
-                            + "  \"summary\": \"2-3 sentence executive assessment\",\n"
-                            + "  \"matchedSkills\": [\"Skill1\", \"Skill2\"],\n"
-                            + "  \"missingSkills\": [\"SkillA\", \"SkillB\"],\n"
-                            + "  \"atsKeywords\": [\"Keyword1\", \"Keyword2\", \"Keyword3\", \"Keyword4\"],\n"
-                            + "  \"bulletRewrites\": [\n"
-                            + "    {\"original\": \"generic bullet from resume\", \"improved\": \"STAR formatted bullet with metrics and strong action verbs\", \"rationale\": \"explanation\"}\n"
-                            + "  ],\n"
-                            + "  \"studyGuide\": {\n"
-                            + "    \"coreTopics\": [\"topic 1\", \"topic 2\"],\n"
-                            + "    \"systemDesign\": [\"design concept 1\", \"design concept 2\"],\n"
-                            + "    \"interviewQuestions\": [\n"
-                            + "      {\"question\": \"question text\", \"tip\": \"what the interviewer evaluates\"}\n"
-                            + "    ]\n"
-                            + "  },\n"
-                            + "  \"roadmap\": [\"step 1\", \"step 2\", \"step 3\"]\n"
-                            + "}\n\n"
-                            + "RESUME:\n" + resume + "\n\n"
-                            + "JOB DESCRIPTION:\n" + (jobDescription.isBlank() ? "Standard requirements for " + targetRole : jobDescription);
-                    String raw = callGeminiApi(apiKey, prompt);
-                    responseJson = cleanJsonOutput(raw);
-                } catch (Exception e) {
-                    responseJson = generateHeuristicCareerJson(resume, targetRole, jobDescription);
-                }
-            } else {
-                responseJson = generateHeuristicCareerJson(resume, targetRole, jobDescription);
+            if (apiKey.isBlank()) {
+                sendJsonResponse(exchange, 200, "{\"error\":\"Please configure your Google Gemini API key to analyze your resume with AI.\"}");
+                return;
             }
 
-            sendJsonResponse(exchange, 200, responseJson);
+            try {
+                String prompt = "You are an expert tech recruiter, ATS specialist, and senior hiring manager. "
+                        + "Analyze this candidate resume against the Target Role: '" + targetRole + "' and Job Description: '" + jobDescription + "'.\n"
+                        + "Respond strictly with valid JSON without markdown code blocks using this exact format:\n"
+                        + "{\n"
+                        + "  \"score\": 85,\n"
+                        + "  \"atsScore\": 82,\n"
+                        + "  \"breakdown\": {\"keywords\": 78, \"impact\": 74, \"formatting\": 92},\n"
+                        + "  \"summary\": \"2-3 sentence executive assessment\",\n"
+                        + "  \"matchedSkills\": [\"Skill1\", \"Skill2\"],\n"
+                        + "  \"missingSkills\": [\"SkillA\", \"SkillB\"],\n"
+                        + "  \"atsKeywords\": [\"Keyword1\", \"Keyword2\", \"Keyword3\", \"Keyword4\"],\n"
+                        + "  \"bulletRewrites\": [\n"
+                        + "    {\"original\": \"generic bullet from resume\", \"improved\": \"STAR formatted bullet with metrics and strong action verbs\", \"rationale\": \"explanation\"}\n"
+                        + "  ],\n"
+                        + "  \"studyGuide\": {\n"
+                        + "    \"coreTopics\": [\"topic 1\", \"topic 2\"],\n"
+                        + "    \"systemDesign\": [\"design concept 1\", \"design concept 2\"],\n"
+                        + "    \"interviewQuestions\": [\n"
+                        + "      {\"question\": \"question text\", \"tip\": \"what the interviewer evaluates\"}\n"
+                        + "    ]\n"
+                        + "  },\n"
+                        + "  \"roadmap\": [\"step 1\", \"step 2\", \"step 3\"]\n"
+                        + "}\n\n"
+                        + "RESUME:\n" + resume + "\n\n"
+                        + "JOB DESCRIPTION:\n" + (jobDescription.isBlank() ? "Standard requirements for " + targetRole : jobDescription);
+                String raw = callGeminiApi(apiKey, prompt);
+                String responseJson = cleanJsonOutput(raw);
+                sendJsonResponse(exchange, 200, responseJson);
+            } catch (Exception e) {
+                System.err.println("Gemini career analysis failed: " + e.getMessage());
+                sendJsonResponse(exchange, 200, "{\"error\":\"Gemini API Error: " + escapeJson(e.getMessage()) + "\"}");
+            }
         }
     }
 
     // =========================================================================
-    // AI Mock Interview Handler
+    // AI Mock Interview Handler (100% Live Gemini AI)
     // =========================================================================
     static class CareerInterviewHandler implements HttpHandler {
         @Override
@@ -261,41 +255,31 @@ public class SmartCampusApp {
             String apiKey = extractJsonField(body, "apiKey");
             if (apiKey.isBlank()) apiKey = globalGeminiKey;
 
+            if (apiKey.isBlank()) {
+                sendJsonResponse(exchange, 200, "{\"error\":\"Please configure your Google Gemini API key to practice mock interviews with AI.\"}");
+                return;
+            }
+
             if ("start".equalsIgnoreCase(action)) {
-                String questionText;
-                if (!apiKey.isBlank()) {
-                    try {
-                        String prompt = "Generate a single challenging technical interview question for a candidate applying for: " + targetRole + " with this resume:\n" + resume;
-                        questionText = callGeminiApi(apiKey, prompt);
-                    } catch (Exception e) {
-                        questionText = getHeuristicInterviewQuestion(targetRole);
-                    }
-                } else {
-                    questionText = getHeuristicInterviewQuestion(targetRole);
+                try {
+                    String prompt = "Generate a single challenging technical interview question for a candidate applying for: " + targetRole + " with this resume:\n" + resume;
+                    String questionText = callGeminiApi(apiKey, prompt);
+                    sendJsonResponse(exchange, 200, "{\"question\":\"" + escapeJson(questionText.trim()) + "\"}");
+                } catch (Exception e) {
+                    sendJsonResponse(exchange, 200, "{\"error\":\"Gemini API Error: " + escapeJson(e.getMessage()) + "\"}");
                 }
-                sendJsonResponse(exchange, 200, "{\"question\":\"" + escapeJson(questionText.trim()) + "\"}");
             } else {
                 // evaluate
-                String feedback;
-                String score;
-                if (!apiKey.isBlank()) {
-                    try {
-                        String prompt = "You are a lead technical interviewer for " + targetRole + ".\n"
-                                + "Question: " + question + "\n"
-                                + "Candidate Answer: " + answer + "\n\n"
-                                + "Evaluate the answer. Respond strictly with JSON: {\"score\":\"8.5\",\"feedback\":\"2-3 sentences of feedback and technical improvements\"}";
-                        String raw = callGeminiApi(apiKey, prompt);
-                        sendJsonResponse(exchange, 200, cleanJsonOutput(raw));
-                        return;
-                    } catch (Exception e) {
-                        feedback = evaluateHeuristicInterview(answer);
-                        score = "8.2";
-                    }
-                } else {
-                    feedback = evaluateHeuristicInterview(answer);
-                    score = "8.2";
+                try {
+                    String prompt = "You are a lead technical interviewer for " + targetRole + ".\n"
+                            + "Question: " + question + "\n"
+                            + "Candidate Answer: " + answer + "\n\n"
+                            + "Evaluate the answer. Respond strictly with JSON: {\"score\":\"8.5\",\"feedback\":\"2-3 sentences of feedback and technical improvements\"}";
+                    String raw = callGeminiApi(apiKey, prompt);
+                    sendJsonResponse(exchange, 200, cleanJsonOutput(raw));
+                } catch (Exception e) {
+                    sendJsonResponse(exchange, 200, "{\"error\":\"Gemini API Error: " + escapeJson(e.getMessage()) + "\"}");
                 }
-                sendJsonResponse(exchange, 200, "{\"score\":\"" + score + "\",\"feedback\":\"" + escapeJson(feedback) + "\"}");
             }
         }
     }
@@ -373,467 +357,6 @@ public class SmartCampusApp {
         if (lastException != null) throw lastException;
         throw new RuntimeException("All Gemini model endpoints failed.");
     }
-
-    // =========================================================================
-    // Offline Heuristic Engines (Dynamic Fallback)
-    // =========================================================================
-    private static String generateHeuristicStudyAnswer(String question, String notes) {
-        if (notes == null || notes.trim().isEmpty()) {
-            return "No study notes have been uploaded yet. Please paste your study material in the text area above, then ask your question again for a contextual answer.";
-        }
-
-        String qLower = question.toLowerCase().trim();
-
-        // 1. Handle Greetings & Pleasantries
-        if (qLower.matches("^(hi|hello|hey|greetings|good\\s*(morning|afternoon|evening)|howdy|sup)\\b.*")) {
-            return "Hello! I am your AI study assistant. I have reviewed your uploaded study notes. "
-                 + "Feel free to ask me about any concept, definition, mechanism, or comparison, or click 'Generate Quiz' on the right to test your understanding!";
-        }
-
-        // 2. Extract Sentences
-        String[] rawSentences = notes.split("(?<=[.!?\\n])\\s+");
-        List<String> sentences = new ArrayList<>();
-        for (String s : rawSentences) {
-            String trimmed = s.replaceAll("^[-*•0-9.) ]+", "").trim();
-            if (trimmed.length() > 8) {
-                sentences.add(trimmed);
-            }
-        }
-        if (sentences.isEmpty()) sentences.add(notes.trim());
-
-        // 3. Technical Knowledge Base for Common Domain Concepts
-        Map<String, String> conceptGlossary = new LinkedHashMap<>();
-        conceptGlossary.put("cross reference", "In your knowledge base, cross-references are pre-linked semantic relationships that connect related documents, terms, and files together. Unlike traditional RAG (which must rediscover connections from scratch each query), the wiki compiles cross-references once so links and dependencies are always maintained.");
-        conceptGlossary.put("cross-reference", "In your knowledge base, cross-references are pre-linked semantic relationships that connect related documents, terms, and files together. Unlike traditional RAG (which must rediscover connections from scratch each query), the wiki compiles cross-references once so links and dependencies are always maintained.");
-        conceptGlossary.put("cross references", "In your knowledge base, cross-references are pre-linked semantic relationships that connect related documents, terms, and files together. Unlike traditional RAG (which must rediscover connections from scratch each query), the wiki compiles cross-references once so links and dependencies are always maintained.");
-        conceptGlossary.put("llm", "Large Language Model — an advanced artificial intelligence model capable of deep language comprehension, reasoning, and synthesis. In your notes, the LLM functions as the autonomous agent that summarizes sources, creates cross-references, files markdown documents, and maintains wiki consistency.");
-        conceptGlossary.put("rag", "Retrieval-Augmented Generation — a pattern where an AI queries raw chunks from a database per query. Your notes contrast this with an LLM Wiki: while traditional RAG rediscovers knowledge from scratch every time, the wiki compiles and synthesizes knowledge once into a compounding knowledge base.");
-        conceptGlossary.put("wiki", "A persistent, compounding knowledge base structured as interlinked markdown files. Based on Andrej Karpathy's pattern, it compiles knowledge once, flags contradictions, and keeps all information continuously current.");
-        conceptGlossary.put("synthesis", "The unified integration of all ingested knowledge. In your system, synthesis reflects everything ingested and keeps contradictions pre-flagged rather than processing information in isolated silos.");
-        conceptGlossary.put("agent", "The autonomous AI component in the division of labor that summarizes documents, creates cross-references, files entries, and maintains consistency while the human curates sources and directs analysis.");
-        conceptGlossary.put("contradiction", "Discrepancies identified and flagged during ingestion to ensure the knowledge base maintains factual accuracy and coherence across all interlinked files.");
-        conceptGlossary.put("division of labor", "The operational split between human and AI: the human curates sources and directs analysis, while the agent summarizes, cross-references, files, and maintains consistency.");
-        conceptGlossary.put("docker", "A containerization platform that packages applications and dependencies into isolated, lightweight containers.");
-        conceptGlossary.put("container", "A standard, portable unit of software packaging code and all dependencies to run reliably across environments.");
-        conceptGlossary.put("kubernetes", "An open-source container orchestration engine that automates deployment, scaling, and operational management.");
-        conceptGlossary.put("api", "Application Programming Interface — standard protocols enabling services and components to communicate securely and efficiently.");
-        conceptGlossary.put("microservice", "An architectural approach arranging an application as a suite of loosely coupled, fine-grained, independently deployable services.");
-
-        // Check if question asks about a specific term in the glossary
-        String matchedTerm = null;
-        for (String term : conceptGlossary.keySet()) {
-            if (qLower.contains(term)) {
-                matchedTerm = term;
-                break;
-            }
-        }
-
-        // 4. Handle "What is X" / Definition & Concept Inquiries
-        if (matchedTerm != null) {
-            String glossaryDef = conceptGlossary.get(matchedTerm);
-            List<String> relatedFromNotes = new ArrayList<>();
-            for (String sent : sentences) {
-                if (sent.toLowerCase().contains(matchedTerm) || (matchedTerm.contains(" ") && sent.toLowerCase().contains(matchedTerm.split(" ")[0]))) {
-                    relatedFromNotes.add(sent);
-                }
-            }
-
-            StringBuilder sb = new StringBuilder();
-            sb.append("**").append(capitalize(matchedTerm)).append("** in the context of your material:\n\n");
-            sb.append(glossaryDef).append("\n\n");
-
-            if (!relatedFromNotes.isEmpty()) {
-                sb.append("**Directly from your uploaded notes:**\n");
-                for (String r : relatedFromNotes) {
-                    sb.append("• ").append(r);
-                    if (!r.endsWith(".")) sb.append(".");
-                    sb.append("\n");
-                }
-            } else {
-                sb.append("**Role in your notes:** This concept forms an essential foundation for the system architecture and workflow outlined in your material.\n");
-            }
-
-            sb.append("\n*Tip: You can ask how this relates to other components in your notes, or generate a quiz to test your mastery.*");
-            return sb.toString();
-        }
-
-        // 5. Handle Summary Requests
-        if (qLower.matches(".*(summarize|summary|overview|what is this|explain all|brief).*")) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("### Summary of Uploaded Material\n\n");
-            sb.append("Here is an overview of the key concepts and structure from your notes:\n\n");
-            for (String sent : sentences) {
-                sb.append("• ").append(sent);
-                if (!sent.endsWith(".")) sb.append(".");
-                sb.append("\n");
-            }
-            sb.append("\n**Core Takeaway:** This material defines a structured approach to knowledge management and workflow execution. Ask specific questions about any part above!");
-            return sb.toString();
-        }
-
-        // 6. General Search & Synthesis for other queries
-        String[] questionWords = qLower.replaceAll("[^a-z0-9 ]", "").split("\\s+");
-        Set<String> stopwords = Set.of(
-            "what", "which", "where", "when", "that", "this", "with", "from", "have", "does",
-            "explain", "describe", "about", "tell", "give", "some", "more", "into", "their",
-            "them", "they", "will", "would", "could", "should", "your", "user", "role", "help", "mean", "work"
-        );
-        List<String> keywords = new ArrayList<>();
-        for (String w : questionWords) {
-            if (w.length() > 2 && !stopwords.contains(w)) {
-                keywords.add(w);
-            }
-        }
-
-        Map<String, Integer> scored = new LinkedHashMap<>();
-        for (String s : sentences) {
-            String lower = s.toLowerCase();
-            int score = 0;
-            for (String kw : keywords) {
-                if (lower.contains(kw)) score += 2;
-                if (lower.startsWith(kw) || lower.contains(" " + kw + " ")) score += 3;
-            }
-            if (score > 0) scored.put(s, score);
-        }
-
-        List<Map.Entry<String, Integer>> sortedMatches = new ArrayList<>(scored.entrySet());
-        sortedMatches.sort((a, b) -> b.getValue().compareTo(a.getValue()));
-
-        StringBuilder sb = new StringBuilder();
-        if (!sortedMatches.isEmpty()) {
-            sb.append("Based on your uploaded study notes:\n\n");
-            sb.append(sortedMatches.get(0).getKey());
-            if (!sortedMatches.get(0).getKey().endsWith(".")) sb.append(".");
-            sb.append("\n\n**Key Details & Context:**\n");
-            int limit = Math.min(3, sortedMatches.size());
-            for (int i = 0; i < limit; i++) {
-                String sent = sortedMatches.get(i).getKey();
-                sb.append("• ").append(sent);
-                if (!sent.endsWith(".")) sb.append(".");
-                sb.append("\n");
-            }
-            sb.append("\n*Feel free to ask follow-up questions or generate a quiz to test your recall.*");
-        } else {
-            sb.append("Here is relevant context from your study notes:\n\n");
-            int limit = Math.min(3, sentences.size());
-            for (int i = 0; i < limit; i++) {
-                String sent = sentences.get(i);
-                sb.append("• ").append(sent);
-                if (!sent.endsWith(".")) sb.append(".");
-                sb.append("\n");
-            }
-            sb.append("\n*Try phrasing your question with specific terms from the notes for a targeted answer.*");
-        }
-
-        return sb.toString();
-    }
-
-    private static String generateHeuristicQuizJson(String notes) {
-        if (notes == null || notes.trim().isEmpty()) {
-            return "{\"questions\": [{\"question\": \"Please paste your study notes in the Study Materials box to generate a quiz.\", \"options\": [\"Paste notes in Study Materials box\", \"Connect your Gemini API Key\", \"Ask questions in Ask AI\", \"All of the above\"], \"correctAnswerIndex\": 0, \"explanation\": \"The quiz generator extracts questions and definitions directly from the notes you paste in the Study Materials area.\"}]}";
-        }
-
-        // Extract concepts and definition pairs from notes
-        List<String[]> extractedPairs = new ArrayList<>();
-        String[] lines = notes.split("\\r?\\n");
-        for (String line : lines) {
-            String trimmed = line.trim();
-            if (trimmed.length() < 12) continue;
-
-            if (trimmed.contains(":") && trimmed.indexOf(":") < 40) {
-                String[] parts = trimmed.split(":", 2);
-                String term = parts[0].replaceAll("^[^a-zA-Z0-9 ]+", "").trim();
-                String def = parts[1].trim();
-                if (!term.isBlank() && def.length() > 8) {
-                    extractedPairs.add(new String[]{term, def});
-                }
-            } else if (trimmed.contains(" - ") && trimmed.indexOf(" - ") < 40) {
-                String[] parts = trimmed.split(" - ", 2);
-                String term = parts[0].replaceAll("^[^a-zA-Z0-9 ]+", "").trim();
-                String def = parts[1].trim();
-                if (!term.isBlank() && def.length() > 8) {
-                    extractedPairs.add(new String[]{term, def});
-                }
-            } else if (trimmed.matches("(?i).*\\b(is defined as|is a|is an|is the|is|refers to|means|provides|enables|manages|handles|packages)\\b.*")) {
-                String[] parts = trimmed.split("(?i)\\b(is defined as|is a|is an|is the|is|refers to|means|provides|enables|manages|handles|packages)\\b", 2);
-                String term = parts[0].replaceAll("^[^a-zA-Z0-9 ]+", "").trim();
-                String def = parts[1].trim();
-                if (!term.isBlank() && term.length() < 40 && def.length() > 8) {
-                    extractedPairs.add(new String[]{term, def});
-                }
-            }
-        }
-
-        // If not enough pairs extracted from structured patterns, break sentences into terms and facts
-        if (extractedPairs.size() < 3) {
-            String[] sentences = notes.split("(?<=[.!?\\n])\\s+");
-            for (String s : sentences) {
-                String trimmed = s.replaceAll("^[-*•0-9.) ]+", "").trim();
-                if (trimmed.length() > 20) {
-                    String[] words = trimmed.split("\\s+");
-                    if (words.length >= 4) {
-                        int termWordCount = Math.min(3, Math.max(1, words.length / 3));
-                        String term = String.join(" ", Arrays.copyOfRange(words, 0, termWordCount)).replaceAll("[,;:]", "");
-                        String def = String.join(" ", Arrays.copyOfRange(words, termWordCount, words.length));
-                        if (!term.isBlank() && def.length() > 10) {
-                            extractedPairs.add(new String[]{term, def});
-                        }
-                    }
-                }
-            }
-        }
-
-        // Clean and normalize terms
-        for (int i = 0; i < extractedPairs.size(); i++) {
-            String[] pair = extractedPairs.get(i);
-            String term = pair[0].replaceAll("(?i)^(a|an|the)\\s+", "").replaceAll("(?i)\\s+(is|are|was|were|a|an|the)$", "").trim();
-            if (term.length() > 1) {
-                term = term.substring(0, 1).toUpperCase() + term.substring(1);
-            }
-            pair[0] = term.isBlank() ? "Core Concept" : term;
-        }
-
-        // Ensure we have at least 3 items to build 3 distinct questions
-        if (extractedPairs.isEmpty()) {
-            extractedPairs.add(new String[]{"Core System Concept", "The fundamental component described in the uploaded notes"});
-            extractedPairs.add(new String[]{"Architecture Design", "The overall structure and interaction between system elements"});
-            extractedPairs.add(new String[]{"Implementation Details", "The specific technical execution described in the material"});
-        }
-        while (extractedPairs.size() < 3) {
-            extractedPairs.add(new String[]{"Concept " + (extractedPairs.size() + 1), "Key operational property detailed in your study notes"});
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\"questions\": [");
-
-        // Question 1: Identification
-        String[] pair1 = extractedPairs.get(0);
-        String term1 = pair1[0];
-        String def1 = pair1[1].length() > 120 ? pair1[1].substring(0, 120) + "..." : pair1[1];
-        List<String> opts1 = new ArrayList<>();
-        opts1.add(term1);
-        for (int j = 1; j < extractedPairs.size() && opts1.size() < 4; j++) {
-            opts1.add(extractedPairs.get(j)[0]);
-        }
-        List<String> genericTerms = List.of("Virtual Container Model", "Distributed Pipeline Layer", "Microservice Gateway", "Relational Index Buffer");
-        for (String g : genericTerms) {
-            if (opts1.size() < 4 && !opts1.contains(g)) opts1.add(g);
-        }
-        Collections.shuffle(opts1);
-        int correctIndex1 = opts1.indexOf(term1);
-
-        sb.append("{")
-          .append("\"question\": \"According to your uploaded notes, which concept is associated with: \\\"")
-          .append(escapeJson(def1))
-          .append("\\\"?\",")
-          .append("\"options\": [\"").append(String.join("\", \"", opts1.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
-          .append("\"correctAnswerIndex\": ").append(correctIndex1).append(",")
-          .append("\"explanation\": \"Directly derived from your notes: ").append(escapeJson(term1)).append(" relates to ").append(escapeJson(def1)).append("\"")
-          .append("},");
-
-        // Question 2: Purpose & Function
-        String[] pair2 = extractedPairs.get(Math.min(1, extractedPairs.size() - 1));
-        String term2 = pair2[0];
-        String def2 = pair2[1].length() > 100 ? pair2[1].substring(0, 100) + "..." : pair2[1];
-        List<String> opts2 = new ArrayList<>();
-        opts2.add(def2);
-        for (int j = 0; j < extractedPairs.size() && opts2.size() < 4; j++) {
-            if (j != 1) {
-                String d = extractedPairs.get(j)[1];
-                opts2.add(d.length() > 100 ? d.substring(0, 100) + "..." : d);
-            }
-        }
-        List<String> genericDefs = List.of(
-            "Acts as a read-only metadata registry without runtime execution",
-            "Manages hardware-level interrupt requests and memory partitions",
-            "Executes network packet filtering for external firewall connections"
-        );
-        for (String gd : genericDefs) {
-            if (opts2.size() < 4 && !opts2.contains(gd)) opts2.add(gd);
-        }
-        Collections.shuffle(opts2);
-        int correctIndex2 = opts2.indexOf(def2);
-
-        sb.append("{")
-          .append("\"question\": \"Based on the provided study material, what is the primary role or feature of \\\"")
-          .append(escapeJson(term2))
-          .append("\\\"?\",")
-          .append("\"options\": [\"").append(String.join("\", \"", opts2.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
-          .append("\"correctAnswerIndex\": ").append(correctIndex2).append(",")
-          .append("\"explanation\": \"Based on your notes: ").append(escapeJson(term2)).append(" is described as: ").append(escapeJson(def2)).append("\"")
-          .append("},");
-
-        // Question 3: Accurate Statement / Fact Check
-        String[] pair3 = extractedPairs.get(Math.min(2, extractedPairs.size() - 1));
-        String term3 = pair3[0];
-        String fact3 = pair3[1].length() > 90 ? pair3[1].substring(0, 90) : pair3[1];
-        List<String> opts3 = new ArrayList<>();
-        opts3.add(term3 + " " + fact3);
-        opts3.add(term3 + " is strictly an offline protocol with no external interactions");
-        opts3.add(term3 + " has been completely deprecated and replaced in modern systems");
-        opts3.add(term3 + " operates solely as an unmonitored background logging daemon");
-        Collections.shuffle(opts3);
-        int correctIndex3 = opts3.indexOf(term3 + " " + fact3);
-
-        sb.append("{")
-          .append("\"question\": \"Based on your study notes, which of the following statements is ACCURATE regarding \\\"")
-          .append(escapeJson(term3))
-          .append("\\\"?\",")
-          .append("\"options\": [\"").append(String.join("\", \"", opts3.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
-          .append("\"correctAnswerIndex\": ").append(correctIndex3).append(",")
-          .append("\"explanation\": \"Accurately cited from your study material: ").append(escapeJson(term3)).append(" ").append(escapeJson(fact3)).append("\"")
-          .append("}");
-
-        sb.append("]}");
-        return sb.toString();
-    }
-
-    private static String generateHeuristicCareerJson(String resume, String targetRole, String jobDescription) {
-        String lowerResume = resume.toLowerCase();
-        String lowerJd = (jobDescription + " " + targetRole).toLowerCase();
-        int score = 72;
-        int keywordScore = 68;
-        int impactScore = 70;
-        int formatScore = 88;
-
-        List<String> matched = new ArrayList<>();
-        List<String> missing = new ArrayList<>();
-        List<String> atsKeywords = new ArrayList<>();
-
-        // Generic skills matching — extract significant words from JD and check resume
-        String[] jdTokens = lowerJd.replaceAll("[^a-z0-9/#+. -]", "").split("\\s+");
-        Set<String> checkedWords = new java.util.HashSet<>();
-        for (String token : jdTokens) {
-            if (token.length() > 3 && !List.of("with", "from", "that", "this", "have", "will", "your", "must", "able", "work", "team", "role", "about", "join", "more", "should").contains(token)) {
-                if (checkedWords.add(token)) {
-                    if (lowerResume.contains(token)) {
-                        matched.add(capitalize(token));
-                        score += 2;
-                        keywordScore += 3;
-                    } else {
-                        missing.add(capitalize(token));
-                        atsKeywords.add(capitalize(token));
-                    }
-                }
-            }
-            if (matched.size() + missing.size() >= 20) break;
-        }
-
-        // Cap at reasonable limits
-        if (matched.size() > 8) matched = matched.subList(0, 8);
-        if (missing.size() > 8) missing = missing.subList(0, 8);
-        if (atsKeywords.size() > 10) atsKeywords = atsKeywords.subList(0, 10);
-        if (score > 95) score = 95;
-        if (keywordScore > 98) keywordScore = 98;
-        int atsOverall = (int) Math.round((keywordScore * 0.45) + (impactScore * 0.35) + (formatScore * 0.20));
-
-        // Dynamically extract user's real resume bullet points
-        List<String> actualBullets = new ArrayList<>();
-        for (String line : resume.split("\\r?\\n")) {
-            String trimmed = line.trim();
-            if ((trimmed.startsWith("-") || trimmed.startsWith("*") || trimmed.startsWith("\u2022") || trimmed.matches("^\\d+\\..*")) && trimmed.length() > 25) {
-                actualBullets.add(trimmed.replaceAll("^[-*\u2022\\d.]+\\s*", ""));
-            }
-        }
-
-        String bullet1Original = actualBullets.size() > 0 ? actualBullets.get(0) : "No bullet points found in resume.";
-        String bullet1Improved = actualBullets.size() > 0
-                ? "Spearheaded " + actualBullets.get(0) + ", delivering measurable impact with quantified results and strong action verbs."
-                : "Upload your resume to get personalized bullet point rewrites.";
-
-        String bullet2Original = actualBullets.size() > 1 ? actualBullets.get(1) : "";
-        String bullet2Improved = actualBullets.size() > 1
-                ? "Engineered and optimized " + actualBullets.get(1) + ", incorporating industry best practices to achieve concrete performance gains."
-                : "";
-
-        // Build study guide dynamically based on missing skills
-        List<String> coreTopics = new ArrayList<>();
-        List<String> designTopics = new ArrayList<>();
-        for (int i = 0; i < missing.size() && i < 3; i++) {
-            coreTopics.add("Study fundamentals of " + missing.get(i) + " as required by the target role.");
-        }
-        if (coreTopics.isEmpty()) coreTopics.add("Review the core competencies listed in the job description.");
-        for (int i = 3; i < missing.size() && designTopics.size() < 3; i++) {
-            designTopics.add("Learn practical applications of " + missing.get(i) + " for this role.");
-        }
-        if (designTopics.isEmpty()) designTopics.add("Review system architecture concepts relevant to your target role.");
-
-        // Build interview questions from JD keywords
-        List<String> interviewQs = new ArrayList<>();
-        int qCount = 0;
-        for (String skill : matched) {
-            if (qCount >= 3) break;
-            interviewQs.add("{\"question\": \"Explain your experience with " + escapeJson(skill) + " and how you applied it in a real project.\", \"tip\": \"Focus on measurable outcomes, trade-offs, and technical depth.\"}");
-            qCount++;
-        }
-        for (String skill : missing) {
-            if (qCount >= 5) break;
-            interviewQs.add("{\"question\": \"How would you approach learning and applying " + escapeJson(skill) + " for this role?\", \"tip\": \"Show awareness of the technology and a concrete learning plan.\"}");
-            qCount++;
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("{")
-          .append("\"score\": ").append(score).append(",")
-          .append("\"atsScore\": ").append(atsOverall).append(",")
-          .append("\"breakdown\": {\"keywords\": ").append(keywordScore).append(", \"impact\": ").append(impactScore).append(", \"formatting\": ").append(formatScore).append("},")
-          .append("\"summary\": \"Profile analyzed for ").append(escapeJson(targetRole)).append(". ").append(matched.size()).append(" matching keywords found, ").append(missing.size()).append(" gaps identified.\",")
-          .append("\"matchedSkills\": [\"").append(String.join("\", \"", matched.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
-          .append("\"missingSkills\": [\"").append(String.join("\", \"", missing.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
-          .append("\"atsKeywords\": [\"").append(String.join("\", \"", atsKeywords.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
-          .append("\"bulletRewrites\": [");
-
-        sb.append("{\"original\": \"").append(escapeJson(bullet1Original)).append("\", \"improved\": \"").append(escapeJson(bullet1Improved)).append("\", \"rationale\": \"Adds strong action verb and quantifiable impact.\"}");
-        if (!bullet2Original.isBlank()) {
-            sb.append(",{\"original\": \"").append(escapeJson(bullet2Original)).append("\", \"improved\": \"").append(escapeJson(bullet2Improved)).append("\", \"rationale\": \"Incorporates industry terminology and measurable outcomes.\"}");
-        }
-        sb.append("],");
-
-        sb.append("\"studyGuide\": {")
-          .append("\"coreTopics\": [\"").append(String.join("\", \"", coreTopics.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
-          .append("\"systemDesign\": [\"").append(String.join("\", \"", designTopics.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
-          .append("\"interviewQuestions\": [").append(String.join(",", interviewQs)).append("]")
-          .append("},");
-
-        sb.append("\"roadmap\": [")
-          .append("\"Add the missing ATS keywords to your project descriptions and skills section.\",")
-          .append("\"Prepare structured STAR-format answers for the targeted interview questions.\",")
-          .append("\"Build a small portfolio project showcasing the missing skills for this role.\"")
-          .append("]")
-          .append("}");
-
-        return sb.toString();
-    }
-
-    private static String capitalize(String s) {
-        if (s == null || s.isBlank()) return s;
-        return s.substring(0, 1).toUpperCase() + s.substring(1);
-    }
-
-    private static String getHeuristicInterviewQuestion(String targetRole) {
-        String role = targetRole.toLowerCase();
-        if (role.contains("backend") || role.contains("server") || role.contains("api")) {
-            return "Describe how you would design a scalable backend service that handles high concurrency. What trade-offs would you consider?";
-        } else if (role.contains("frontend") || role.contains("ui") || role.contains("react") || role.contains("web")) {
-            return "How do you approach building a responsive, accessible web application? Walk me through your architecture decisions.";
-        } else if (role.contains("data") || role.contains("analyst") || role.contains("machine learning")) {
-            return "Describe a data pipeline or analysis project you worked on. What tools did you use and how did you validate your results?";
-        } else if (role.contains("full stack")) {
-            return "Walk me through how you would architect a full-stack application from database design to the frontend. What technologies would you choose and why?";
-        } else if (role.contains("devops") || role.contains("cloud") || role.contains("sre")) {
-            return "How would you set up a CI/CD pipeline for a production application? What monitoring and alerting would you implement?";
-        } else {
-            return "Tell me about a challenging technical project you worked on. What was your role, what decisions did you make, and what was the outcome?";
-        }
-    }
-
-    private static String evaluateHeuristicInterview(String answer) {
-        if (answer.trim().length() < 30) {
-            return "Your answer is quite brief. Try structuring your response with: 1) The core concept or approach, 2) Technical trade-offs you considered, and 3) A real-world example or outcome.";
-        }
-        return "Good answer structure. You demonstrated understanding of the topic with practical reasoning. To strengthen further, quantify outcomes and mention specific technologies or patterns you applied.";
-    }
-
     // =========================================================================
     // Helper Utilities
     // =========================================================================

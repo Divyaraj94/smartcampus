@@ -131,8 +131,8 @@
             <!-- Real-time AI Status Indicator on Card -->
             <div class="study-ai-status" style="display: flex; align-items: center; gap: 8px;">
               <span id="studyAiStatusPill" class="status-pill font-mono" style="padding: 5px 12px; font-size: 0.75rem;">
-                <span id="studyAiStatusDot" class="pulsing-dot" style="background-color: var(--muted-fg); box-shadow: none;"></span>
-                <span id="studyAiStatusLabel">Offline Engine Ready</span>
+                <span id="studyAiStatusDot" class="pulsing-dot" style="background-color: var(--amber); box-shadow: none;"></span>
+                <span id="studyAiStatusLabel">API Key Required</span>
               </span>
             </div>
           </div>
@@ -150,7 +150,7 @@
                 <button id="btnStudyClearInlineKey" class="btn btn-secondary btn-sm" type="button">Remove Key</button>
                 <button id="btnStudyCloseInlineKey" class="btn btn-ghost btn-sm" type="button">Close</button>
               </div>
-              <span class="text-xs text-muted font-mono">* Key is saved securely in your browser and used for live Gemini AI answers and quizzes. If blank, the intelligent offline engine is used.</span>
+              <span class="text-xs text-muted font-mono">* Key is saved securely in your browser and used for live Gemini AI answers and quizzes.</span>
             </div>
           </div>
         </div>
@@ -538,7 +538,7 @@
         <button id="btnCloseKeyModal" class="btn-icon" aria-label="Close modal">&times;</button>
       </div>
       <p class="modal-desc">
-        To use live AI generation, paste your free Google Gemini API key below. Get one at <a href="https://aistudio.google.com/apikey" target="_blank" style="color: var(--accent); text-decoration: underline;">aistudio.google.com</a>. If left blank, the platform operates in <strong>Offline Mode</strong> with built-in intelligence.
+        To use live AI generation, paste your free Google Gemini API key below. Get a free API key instantly at <a href="https://aistudio.google.com/apikey" target="_blank" style="color: var(--accent); text-decoration: underline;">aistudio.google.com</a>.
       </p>
       <div class="input-group my-4">
         <label for="geminiApiKeyInput" class="field-label font-mono">GEMINI API KEY</label>

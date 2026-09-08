@@ -20,9 +20,9 @@
    - Generates verified skill badges (emerald), missing skill gaps (amber), and an actionable preparation roadmap.
    - **Inverted Contrast Section**: AI Technical Mock Interview coach that asks role-specific questions and scores candidate answers out of 10.
 
-3. **Dual AI Engine**:
-   - **Cloud AI**: Direct integration with Google Gemini Free API (`gemini-1.5-flash` / `gemini-2.0-flash`).
-   - **Offline Evaluator Mode**: Built-in heuristic intelligence engine ensuring the project **never crashes during campus viva** even if evaluated without an internet connection or API key!
+3. **Live Google Gemini AI Engine**:
+   - Powered by Google Gemini (`gemini-1.5-flash`, `gemini-2.0-flash`, `gemini-1.5-pro`).
+   - Secure client & server API key configuration with instant validation.
 
 ---
 
@@ -95,8 +95,7 @@ http://localhost:8080
    - Switch to the **"Career & Placement Lab"** tab.
    - Click **"Load Sample Student Resume"** and select **"Java Backend Developer"**.
    - Click **"Run Career & Gap Analysis"**. Watch the radial match gauge animate, displaying matched skills, skill gaps, and the strategic roadmap.
-   - Scroll down to the **Inverted Contrast Section** (Mock Interview Coach). Click **"Start New Interview Session"**, type a response, and click **"Submit Answer for AI Grading"** to see the score and feedback!
 
-3. **Demonstrate Live Gemini API Key (Optional)**:
-   - Click the **"API KEY"** button in the top navbar.
-   - Enter your free Google Gemini API key to switch from Offline Heuristic mode to Live Cloud AI!
+3. **Connect Gemini API Key**:
+   - Click the **"API KEY"** button in the top navbar or the inline button in Study Material.
+   - Enter your free Google Gemini API key from Google AI Studio (`aistudio.google.com`) to activate live responses!

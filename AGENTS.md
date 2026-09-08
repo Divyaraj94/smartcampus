@@ -22,9 +22,9 @@
   * `java.net.http.HttpClient` for native JSON REST communication.
   * Native in-memory state & stdlib JSON helpers.
 * ⚠️ **DO NOT introduce Maven, Gradle, Spring Boot, or heavy external libraries** (like Jackson, Gson, Lombok) unless explicitly instructed by the user. The project's primary selling point for academic viva/grading is that it boots in **0.18s** with **zero broken dependencies** on any evaluator's machine.
-* **Dual AI Engine**:
-  * **Cloud Mode**: Google Gemini Free API (`gemini-1.5-flash`).
-  * **Offline Mode**: Intelligent built-in heuristic/rule engine that provides realistic study answers, quizzes, ATS resume scoring, and mock interview feedback even if run offline with no API key. **Ensure this offline fallback is always preserved.**
+* **AI Engine**:
+  * Powered by Google Gemini Free API (`gemini-1.5-flash`, `gemini-2.0-flash`, `gemini-1.5-pro`).
+  * Live API calls with validation; no offline heuristic dummy data.
 
 ### 2. Frontend (Minimalist Modern Design System)
 * **Stack**: Pure Vanilla HTML5 + Vanilla CSS3 + Vanilla JavaScript (ES6+). Zero build steps (no npm, webpack, or vite).
@@ -108,5 +108,5 @@ When making modifications, verify your changes using these commands:
 ## 💡 Key Design Rules for Future Agents
 
 1. **Keep It Simple & Robust (YAGNI)**: Avoid over-engineering. Do not split `SmartCampusApp.java` into 20 micro-packages unless strictly necessary.
-2. **Maintain Offline Fallback**: Any new AI features added MUST have a deterministic offline heuristic fallback in Java so student demonstrations never fail when evaluated without Wi-Fi.
+2. **Google Gemini AI Direct Integration**: Features use live Google Gemini API endpoints. Clear feedback and prompts to configure the API key must be presented if no key is present. Do not re-add dummy/offline heuristic answers.
 3. **Preserve UI Aesthetics**: Always maintain the **Minimalist Modern** design system (Electric Blue gradient, Calistoga headlines, JetBrains Mono badges, and inverted contrast sections).

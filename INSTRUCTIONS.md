@@ -111,13 +111,13 @@ Once the page opens at `http://localhost:8080`, here is how you can test all fea
 
 ---
 
-## 🔑 (Optional) Using a Live Google Gemini API Key
-The application includes a built-in **Offline Heuristic AI Engine**, so it works **100% offline without any API key**.
+## 🔑 Using a Google Gemini API Key
+The application connects directly to Google Gemini (`gemini-1.5-flash`, `gemini-2.0-flash`, `gemini-1.5-pro`) for Q&A synthesis, quiz generation, resume ATS matching, and mock interview coaching.
 
-If you want to use live Google Cloud AI:
-1. Click the **"API KEY"** button in the top-right navbar.
-2. Paste your free Google Gemini API key (from [Google AI Studio](https://aistudio.google.com/)).
-3. Click **"Save Key"**. The server will immediately switch to live Gemini AI mode!
+To connect:
+1. Click the **"API KEY"** button in the top-right navbar (or the inline key button next to your study notes).
+2. Paste your free Google Gemini API key from [Google AI Studio](https://aistudio.google.com/).
+3. Click **"Save Key"**. The application will immediately activate live Gemini AI!
 
 ---
 

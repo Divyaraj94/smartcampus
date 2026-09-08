@@ -207,9 +207,12 @@ function initStudyHub() {
     }
 
     if (!geminiApiKey) {
-      showToast("Notes saved! (Using Offline Engine — connect API key anytime)");
+      showToast("Notes saved! Please enter your Gemini API Key below to enable AI.");
       const keyBox = document.getElementById("studyInlineKeyBox");
-      if (keyBox) keyBox.style.display = "block";
+      if (keyBox) {
+        keyBox.style.display = "block";
+        document.getElementById("studyInlineKeyInput")?.focus();
+      }
     } else {
       showToast("Notes saved & connected to Gemini AI!");
     }
@@ -236,14 +239,14 @@ function initStudyHub() {
     const val = document.getElementById("studyInlineKeyInput")?.value.trim() || "";
     updateApiKeyUI(val);
     document.getElementById("studyInlineKeyBox").style.display = "none";
-    showToast(val ? "Gemini API Key Connected!" : "Reverted to Offline Engine");
+    showToast(val ? "Gemini API Key Connected!" : "API Key cleared.");
   });
 
   // Clear Inline Key
   document.getElementById("btnStudyClearInlineKey")?.addEventListener("click", () => {
     updateApiKeyUI("");
     document.getElementById("studyInlineKeyBox").style.display = "none";
-    showToast("API Key removed. Reverted to Offline Engine.");
+    showToast("API Key removed.");
   });
 
   // Close Inline Key
@@ -257,6 +260,16 @@ function initStudyHub() {
     const question = questionInput.value.trim();
     if (!question) return;
 
+    if (!geminiApiKey) {
+      const keyBox = document.getElementById("studyInlineKeyBox");
+      if (keyBox) {
+        keyBox.style.display = "block";
+        document.getElementById("studyInlineKeyInput")?.focus();
+      }
+      showToast("Please enter your Gemini API Key to ask questions.");
+      return;
+    }
+
     const notes = document.getElementById("studyNotesInput").value.trim();
 
     // Append user bubble
@@ -264,7 +277,7 @@ function initStudyHub() {
     questionInput.value = "";
 
     // Append loading AI bubble
-    const aiBubble = appendChatBubble(chatDisplay, "ai", "Analyzing material and synthesizing answer...");
+    const aiBubble = appendChatBubble(chatDisplay, "ai", "Analyzing material and synthesizing answer with Gemini AI...");
 
     try {
       const response = await fetch("/api/study/ask", {
@@ -274,6 +287,10 @@ function initStudyHub() {
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        aiBubble.querySelector(".bubble-text").textContent = data.error || "Error from Gemini AI. Please check your API key.";
+        return;
+      }
       typewriterEffect(aiBubble.querySelector(".bubble-text"), data.answer || "No response received.");
     } catch (err) {
       aiBubble.querySelector(".bubble-text").textContent = "Network error connecting to backend. Ensure server is running on port 8080.";
@@ -296,10 +313,20 @@ function initStudyHub() {
       return;
     }
 
+    if (!geminiApiKey) {
+      const keyBox = document.getElementById("studyInlineKeyBox");
+      if (keyBox) {
+        keyBox.style.display = "block";
+        document.getElementById("studyInlineKeyInput")?.focus();
+      }
+      showToast("Please enter your Gemini API Key to generate quizzes.");
+      return;
+    }
+
     quizContainer.innerHTML = `
       <div class="empty-state">
         <div class="pulsing-dot" style="margin: 0 auto 12px; width: 14px; height: 14px;"></div>
-        <h4 class="font-display">Generating Quiz...</h4>
+        <h4 class="font-display">Generating Quiz with Gemini AI...</h4>
         <p class="text-muted text-sm">Synthesizing multiple-choice questions from your notes.</p>
       </div>
     `;
@@ -312,9 +339,13 @@ function initStudyHub() {
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        quizContainer.innerHTML = `<div class="empty-state"><p class="text-amber text-sm text-center">${data.error || "Failed to generate quiz. Please check your Gemini API key."}</p></div>`;
+        return;
+      }
       renderQuiz(data.questions || []);
     } catch (err) {
-      quizContainer.innerHTML = `<p class="text-amber text-sm text-center">Failed to generate quiz. Make sure notes are provided.</p>`;
+      quizContainer.innerHTML = `<p class="text-amber text-sm text-center">Failed to generate quiz. Please check server connection.</p>`;
     }
   });
 }
@@ -428,8 +459,14 @@ function initCareerLab() {
       return;
     }
 
+    if (!geminiApiKey) {
+      document.getElementById("keyModal")?.classList.add("open");
+      showToast("Please enter your Gemini API Key to run ATS Analysis.");
+      return;
+    }
+
     btnAnalyze.disabled = true;
-    btnAnalyze.querySelector("span").textContent = "Analyzing...";
+    btnAnalyze.querySelector("span").textContent = "Analyzing with Gemini AI...";
 
     try {
       const response = await fetch("/api/career/analyze", {
@@ -439,6 +476,10 @@ function initCareerLab() {
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || "Failed to analyze resume. Please check your Gemini API key.");
+        return;
+      }
       renderCareerResults(data);
       resultsContainer.style.display = "block";
       resultsContainer.scrollIntoView({ behavior: "smooth" });
@@ -463,8 +504,14 @@ function initCareerLab() {
     const resume = document.getElementById("careerResumeInput").value.trim();
     const targetRole = document.getElementById("careerTargetRole").value;
 
+    if (!geminiApiKey) {
+      document.getElementById("keyModal")?.classList.add("open");
+      showToast("Please enter your Gemini API Key for Mock Interview.");
+      return;
+    }
+
     btnStartInterview.disabled = true;
-    currentQText.textContent = "Generating personalized interview question based on your profile...";
+    currentQText.textContent = "Generating personalized interview question with Gemini AI...";
     interviewBox.style.display = "block";
     feedbackBox.style.display = "none";
 
@@ -476,11 +523,16 @@ function initCareerLab() {
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        currentQText.textContent = data.error || "Error generating interview question. Please check your Gemini API key.";
+        activeInterviewQuestion = "";
+        return;
+      }
       activeInterviewQuestion = data.question;
       currentQText.textContent = activeInterviewQuestion;
     } catch (err) {
-      currentQText.textContent = "Describe a challenging project you worked on and how you handled the technical decisions.";
-      activeInterviewQuestion = currentQText.textContent;
+      currentQText.textContent = "Error generating interview question. Please check your Gemini API key and network connection.";
+      activeInterviewQuestion = "";
     } finally {
       btnStartInterview.disabled = false;
     }
@@ -495,8 +547,14 @@ function initCareerLab() {
       return;
     }
 
+    if (!geminiApiKey) {
+      document.getElementById("keyModal")?.classList.add("open");
+      showToast("Please enter your Gemini API Key to grade interview.");
+      return;
+    }
+
     btnSubmitAnswer.disabled = true;
-    btnSubmitAnswer.querySelector("span").textContent = "Grading Answer...";
+    btnSubmitAnswer.querySelector("span").textContent = "Grading Answer with Gemini AI...";
 
     try {
       const response = await fetch("/api/career/interview", {
@@ -512,6 +570,10 @@ function initCareerLab() {
       });
 
       const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || "Failed to grade interview answer. Please check your Gemini API key.");
+        return;
+      }
       feedbackBox.style.display = "block";
       scoreBadge.textContent = `GRADE: ${data.score}/10`;
       feedbackText.textContent = data.feedback;
@@ -673,8 +735,8 @@ function updateApiKeyUI(key) {
       statusDot.style.backgroundColor = "var(--emerald)";
       statusDot.style.boxShadow = "0 0 8px rgba(16, 185, 129, 0.7)";
     } else {
-      statusLabel.textContent = "Offline Engine Ready";
-      statusDot.style.backgroundColor = "var(--muted-fg)";
+      statusLabel.textContent = "API Key Required";
+      statusDot.style.backgroundColor = "var(--amber)";
       statusDot.style.boxShadow = "none";
     }
   }
@@ -706,7 +768,7 @@ function initApiKeyModal() {
     const key = input ? input.value.trim() : "";
     updateApiKeyUI(key);
     modal?.classList.remove("open");
-    showToast(key ? "Gemini API Key Saved & Connected" : "Reverted to Offline Mode");
+    showToast(key ? "Gemini API Key Saved & Connected" : "API Key Cleared");
   });
 }
 
@@ -721,7 +783,7 @@ async function checkBackendHealth() {
       document.getElementById("systemStatusText").textContent = `ONLINE`;
     }
   } catch (err) {
-    document.getElementById("systemStatusText").textContent = "OFFLINE";
+    document.getElementById("systemStatusText").textContent = "DISCONNECTED";
   }
 }
 
