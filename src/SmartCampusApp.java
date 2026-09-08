@@ -124,9 +124,9 @@ public class SmartCampusApp {
             String answer;
             if (!apiKey.isBlank()) {
                 try {
-                    String prompt = "You are an expert university professor assistant. Answer the student's question clearly and accurately based on the lecture notes below. Use clear bullet points and highlight key technical terms.\n\n"
-                            + "LECTURE NOTES:\n" + (notes.isBlank() ? "General Java Computer Science concepts" : notes) + "\n\n"
-                            + "STUDENT QUESTION:\n" + question;
+                    String prompt = "You are an expert technical tutor and study assistant. Answer the question clearly and accurately based on the notes below. Use clear bullet points and highlight key technical terms.\n\n"
+                            + "NOTES:\n" + (notes.isBlank() ? "Key technical concepts and architecture" : notes) + "\n\n"
+                            + "QUESTION:\n" + question;
                     answer = callGeminiApi(apiKey, prompt);
                 } catch (Exception e) {
                     System.err.println("Gemini API call failed, using intelligent fallback: " + e.getMessage());
@@ -160,10 +160,10 @@ public class SmartCampusApp {
             String responseJson;
             if (!apiKey.isBlank()) {
                 try {
-                    String prompt = "Create 3 multiple-choice questions (MCQs) for exam revision based on the following notes. "
+                    String prompt = "Create 3 multiple-choice questions (MCQs) for revision based on the following notes. "
                             + "Respond strictly with valid JSON in this exact structure without markdown backticks:\n"
                             + "{\"questions\":[{\"question\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"correctAnswerIndex\":0,\"explanation\":\"...\"}]}\n\n"
-                            + "NOTES:\n" + (notes.isBlank() ? "Object-Oriented Programming and JVM Architecture in Java" : notes);
+                            + "NOTES:\n" + (notes.isBlank() ? "Key concepts and technical principles" : notes);
                     String raw = callGeminiApi(apiKey, prompt);
                     // Extract JSON from output
                     responseJson = cleanJsonOutput(raw);
@@ -261,7 +261,7 @@ public class SmartCampusApp {
                 String questionText;
                 if (!apiKey.isBlank()) {
                     try {
-                        String prompt = "Generate a single challenging technical interview question for a campus candidate applying for: " + targetRole + " with this resume:\n" + resume;
+                        String prompt = "Generate a single challenging technical interview question for a candidate applying for: " + targetRole + " with this resume:\n" + resume;
                         questionText = callGeminiApi(apiKey, prompt);
                     } catch (Exception e) {
                         questionText = getHeuristicInterviewQuestion(targetRole);
