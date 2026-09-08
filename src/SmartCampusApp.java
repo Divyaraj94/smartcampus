@@ -326,8 +326,15 @@ public class SmartCampusApp {
     // Google Gemini REST API Client (Standard java.net.http.HttpClient)
     // =========================================================================
     private static String callGeminiApi(String apiKey, String prompt) throws Exception {
-        // Uses gemini-1.5-flash or gemini-2.0-flash free endpoint
-        String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey.trim();
+        // Supports current Gemini models with automatic candidate fallback
+        String[] candidateModels = {
+            "gemini-2.0-flash",
+            "gemini-2.5-flash",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-flash",
+            "gemini-2.0-flash-exp"
+        };
+        Exception lastException = null;
 
         String payload = "{"
                 + "\"contents\": [{"
@@ -335,27 +342,43 @@ public class SmartCampusApp {
                 + "}]"
                 + "}";
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(endpoint))
-                .header("Content-Type", "application/json")
-                .timeout(Duration.ofSeconds(15))
-                .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
-                .build();
+        for (String model : candidateModels) {
+            try {
+                String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey.trim();
 
-        HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() != 200) {
-            throw new RuntimeException("Gemini HTTP " + response.statusCode() + ": " + response.body());
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(endpoint))
+                        .header("Content-Type", "application/json")
+                        .timeout(Duration.ofSeconds(15))
+                        .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
+                        .build();
+
+                HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    String responseBody = response.body();
+                    Pattern textPattern = Pattern.compile("\"text\":\\s*\"(.*?)(?<!\\\\)\"", Pattern.DOTALL);
+                    Matcher matcher = textPattern.matcher(responseBody);
+                    if (matcher.find()) {
+                        return unescapeJson(matcher.group(1));
+                    }
+                    return "Response received from Gemini.";
+                } else if (response.statusCode() == 404) {
+                    lastException = new RuntimeException("Gemini HTTP 404 on " + model);
+                    continue;
+                } else {
+                    throw new RuntimeException("Gemini HTTP " + response.statusCode() + ": " + response.body());
+                }
+            } catch (Exception ex) {
+                lastException = ex;
+                if (ex.getMessage() != null && ex.getMessage().contains("404")) {
+                    continue;
+                }
+                throw ex;
+            }
         }
 
-        // Parse text from Gemini candidate response
-        String responseBody = response.body();
-        Pattern textPattern = Pattern.compile("\"text\":\\s*\"(.*?)(?<!\\\\)\"", Pattern.DOTALL);
-        Matcher matcher = textPattern.matcher(responseBody);
-        if (matcher.find()) {
-            return unescapeJson(matcher.group(1));
-        }
-
-        return "Response received from Gemini.";
+        if (lastException != null) throw lastException;
+        throw new RuntimeException("All Gemini model endpoints failed.");
     }
 
     // =========================================================================
@@ -410,6 +433,72 @@ public class SmartCampusApp {
     }
 
     private static String generateHeuristicQuizJson(String notes) {
+        // Dynamically extract concepts and definitions from whatever notes the user uploaded
+        List<String[]> extractedPairs = new ArrayList<>();
+        if (notes != null && !notes.isBlank()) {
+            String[] lines = notes.split("\\r?\\n");
+            for (String line : lines) {
+                String trimmed = line.trim();
+                if (trimmed.contains(":") && trimmed.length() > 20) {
+                    String[] parts = trimmed.split(":", 2);
+                    String term = parts[0].replaceAll("^[^a-zA-Z0-9 ]+", "").trim();
+                    String def = parts[1].trim();
+                    if (!term.isBlank() && term.length() < 50 && def.length() > 15) {
+                        extractedPairs.add(new String[]{term, def});
+                    }
+                } else if (trimmed.matches(".*\\b(is defined as|is|refers to|means)\\b.*") && trimmed.length() > 30) {
+                    String[] parts = trimmed.split("\\b(is defined as|is|refers to|means)\\b", 2);
+                    String term = parts[0].replaceAll("^[^a-zA-Z0-9 ]+", "").trim();
+                    String def = parts[1].trim();
+                    if (!term.isBlank() && term.length() < 50 && def.length() > 15) {
+                        extractedPairs.add(new String[]{term, def});
+                    }
+                }
+            }
+        }
+
+        // If user provided notes with extractable definitions, dynamically construct MCQs from their text!
+        if (extractedPairs.size() >= 2) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("{\"questions\": [");
+            int count = Math.min(3, extractedPairs.size());
+            for (int i = 0; i < count; i++) {
+                String[] current = extractedPairs.get(i);
+                String term = current[0];
+                String def = current[1];
+
+                // Gather distractor terms from other extracted concepts
+                List<String> options = new ArrayList<>();
+                options.add(term);
+                for (int j = 0; j < extractedPairs.size(); j++) {
+                    if (j != i && options.size() < 4) {
+                        options.add(extractedPairs.get(j)[0]);
+                    }
+                }
+                while (options.size() < 4) {
+                    options.add("System Architecture Concept " + options.size());
+                }
+                Collections.shuffle(options);
+                int correctIndex = options.indexOf(term);
+
+                if (i > 0) sb.append(",");
+                String shortDef = def.length() > 120 ? def.substring(0, 120) + "..." : def;
+                sb.append("{")
+                  .append("\"question\": \"According to your uploaded notes, which concept is defined as: \\\"")
+                  .append(escapeJson(shortDef))
+                  .append("\\\"?\",")
+                  .append("\"options\": [\"")
+                  .append(String.join("\", \"", options.stream().map(SmartCampusApp::escapeJson).toList()))
+                  .append("\"],")
+                  .append("\"correctAnswerIndex\": ").append(correctIndex).append(",")
+                  .append("\"explanation\": \"Directly derived from your notes: ").append(escapeJson(term)).append(" refers to ").append(escapeJson(shortDef)).append("\"")
+                  .append("}");
+            }
+            sb.append("]}");
+            return sb.toString();
+        }
+
+        // Core Fallback for empty or very brief notes
         return "{"
                 + "\"questions\": ["
                 + "  {"
@@ -482,6 +571,21 @@ public class SmartCampusApp {
         if (score > 92) score = 92;
         int atsOverall = (int) Math.round((keywordScore * 0.45) + (impactScore * 0.35) + (formatScore * 0.20));
 
+        // Dynamically extract user's real resume bullet points if available
+        List<String> actualBullets = new ArrayList<>();
+        for (String line : resume.split("\\r?\\n")) {
+            String trimmed = line.trim();
+            if ((trimmed.startsWith("-") || trimmed.startsWith("*") || trimmed.startsWith("•") || trimmed.matches("^\\d+\\..*")) && trimmed.length() > 25) {
+                actualBullets.add(trimmed.replaceAll("^[-*•\\d.]+\\s*", ""));
+            }
+        }
+
+        String bullet1Original = actualBullets.size() > 0 ? actualBullets.get(0) : "Built checkout and order processing services with JWT authentication.";
+        String bullet1Improved = actualBullets.size() > 0 ? "Architected and delivered " + actualBullets.get(0) + ", improving service responsiveness and handling high concurrency with 99.9% uptime." : "Architected distributed checkout and payment services in Java 21/Spring Boot with JWT auth, processing 5,000+ orders with 99.9% uptime.";
+
+        String bullet2Original = actualBullets.size() > 1 ? actualBullets.get(1) : "Designed relational database schemas in MySQL handling 5,000+ orders.";
+        String bullet2Improved = actualBullets.size() > 1 ? "Engineered optimized data models for " + actualBullets.get(1) + ", incorporating indexing and connection pooling to reduce query latency by 35%." : "Engineered normalized MySQL schema with B-Tree indexes and connection pooling, reducing query response times by 32% under load.";
+
         return "{"
                 + "\"score\": " + score + ","
                 + "\"atsScore\": " + atsOverall + ","
@@ -496,14 +600,14 @@ public class SmartCampusApp {
                 + "\"atsKeywords\": [\"" + String.join("\", \"", atsKeywords) + "\"],"
                 + "\"bulletRewrites\": ["
                 + "  {"
-                + "    \"original\": \"Built checkout and order processing services with JWT authentication.\","
-                + "    \"improved\": \"Architected distributed checkout and payment services in Java 21/Spring Boot with JWT auth, processing 5,000+ orders with 99.9% uptime.\","
-                + "    \"rationale\": \"Replaces passive description with quantifiable metrics (5,000+ orders, 99.9% uptime) and strong action verb 'Architected'.\""
+                + "    \"original\": \"" + escapeJson(bullet1Original) + "\","
+                + "    \"improved\": \"" + escapeJson(bullet1Improved) + "\","
+                + "    \"rationale\": \"Replaces passive description with quantifiable metrics, strong action verb, and measurable impact.\""
                 + "  },"
                 + "  {"
-                + "    \"original\": \"Designed relational database schemas in MySQL handling 5,000+ orders.\","
-                + "    \"improved\": \"Engineered normalized MySQL schema with B-Tree indexes and connection pooling, reducing query response times by 32% under load.\","
-                + "    \"rationale\": \"Highlights database optimization keywords (indexing, connection pooling) and measured speed improvement.\""
+                + "    \"original\": \"" + escapeJson(bullet2Original) + "\","
+                + "    \"improved\": \"" + escapeJson(bullet2Improved) + "\","
+                + "    \"rationale\": \"Highlights optimization keywords, database design principles, and concrete latency gains.\""
                 + "  }"
                 + "],"
                 + "\"studyGuide\": {"
@@ -587,15 +691,26 @@ public class SmartCampusApp {
 
     private static String cleanJsonOutput(String raw) {
         String clean = raw.trim();
-        if (clean.startsWith("```json")) {
-            clean = clean.substring(7);
-        } else if (clean.startsWith("```")) {
-            clean = clean.substring(3);
+        int startFence = clean.indexOf("```json");
+        if (startFence != -1) {
+            int endFence = clean.lastIndexOf("```");
+            if (endFence > startFence + 7) {
+                return clean.substring(startFence + 7, endFence).trim();
+            }
         }
-        if (clean.endsWith("```")) {
-            clean = clean.substring(0, clean.length() - 3);
+        startFence = clean.indexOf("```");
+        if (startFence != -1) {
+            int endFence = clean.lastIndexOf("```");
+            if (endFence > startFence + 3) {
+                return clean.substring(startFence + 3, endFence).trim();
+            }
         }
-        return clean.trim();
+        int firstBrace = clean.indexOf("{");
+        int lastBrace = clean.lastIndexOf("}");
+        if (firstBrace != -1 && lastBrace > firstBrace) {
+            return clean.substring(firstBrace, lastBrace + 1).trim();
+        }
+        return clean;
     }
 
     private static String escapeJson(String raw) {
