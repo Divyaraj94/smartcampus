@@ -1,5 +1,9 @@
 // State
 let geminiApiKey = localStorage.getItem("smartcampus_gemini_key") || "";
+if (geminiApiKey.includes("TestMockKey") || geminiApiKey === "AIzaSyTestMockKeyForVerification123") {
+  localStorage.removeItem("smartcampus_gemini_key");
+  geminiApiKey = "";
+}
 let activeInterviewQuestion = "";
 let currentAtsKeywords = [];
 

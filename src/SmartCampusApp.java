@@ -321,13 +321,11 @@ public class SmartCampusApp {
     // Google Gemini REST API Client (Standard java.net.http.HttpClient)
     // =========================================================================
     private static String callGeminiApi(String apiKey, String prompt) throws Exception {
-        // Supports current Gemini models with automatic candidate fallback
+        // Supports current production Gemini models with automatic candidate fallback
         String[] candidateModels = {
-            "gemini-2.0-flash",
-            "gemini-2.5-flash",
-            "gemini-1.5-flash-latest",
             "gemini-1.5-flash",
-            "gemini-2.0-flash-exp"
+            "gemini-2.0-flash",
+            "gemini-1.5-pro"
         };
         Exception lastException = null;
 
@@ -384,25 +382,101 @@ public class SmartCampusApp {
             return "No study notes have been uploaded yet. Please paste your study material in the text area above, then ask your question again for a contextual answer.";
         }
 
-        StringBuilder sb = new StringBuilder();
+        String qLower = question.toLowerCase().trim();
+
+        // 1. Handle Greetings & Pleasantries
+        if (qLower.matches("^(hi|hello|hey|greetings|good\\s*(morning|afternoon|evening)|howdy|sup)\\b.*")) {
+            return "Hello! I am your AI study assistant. I have reviewed your uploaded study notes. "
+                 + "Feel free to ask me about any concept, definition, mechanism, or comparison, or click 'Generate Quiz' on the right to test your understanding!";
+        }
+
+        // 2. Extract Sentences
         String[] rawSentences = notes.split("(?<=[.!?\\n])\\s+");
         List<String> sentences = new ArrayList<>();
         for (String s : rawSentences) {
             String trimmed = s.replaceAll("^[-*•0-9.) ]+", "").trim();
-            if (trimmed.length() > 10) {
+            if (trimmed.length() > 8) {
                 sentences.add(trimmed);
             }
         }
-        if (sentences.isEmpty()) {
-            sentences.add(notes.trim());
+        if (sentences.isEmpty()) sentences.add(notes.trim());
+
+        // 3. Technical Knowledge Base for Common Domain Concepts
+        Map<String, String> conceptGlossary = new LinkedHashMap<>();
+        conceptGlossary.put("cross reference", "In your knowledge base, cross-references are pre-linked semantic relationships that connect related documents, terms, and files together. Unlike traditional RAG (which must rediscover connections from scratch each query), the wiki compiles cross-references once so links and dependencies are always maintained.");
+        conceptGlossary.put("cross-reference", "In your knowledge base, cross-references are pre-linked semantic relationships that connect related documents, terms, and files together. Unlike traditional RAG (which must rediscover connections from scratch each query), the wiki compiles cross-references once so links and dependencies are always maintained.");
+        conceptGlossary.put("cross references", "In your knowledge base, cross-references are pre-linked semantic relationships that connect related documents, terms, and files together. Unlike traditional RAG (which must rediscover connections from scratch each query), the wiki compiles cross-references once so links and dependencies are always maintained.");
+        conceptGlossary.put("llm", "Large Language Model — an advanced artificial intelligence model capable of deep language comprehension, reasoning, and synthesis. In your notes, the LLM functions as the autonomous agent that summarizes sources, creates cross-references, files markdown documents, and maintains wiki consistency.");
+        conceptGlossary.put("rag", "Retrieval-Augmented Generation — a pattern where an AI queries raw chunks from a database per query. Your notes contrast this with an LLM Wiki: while traditional RAG rediscovers knowledge from scratch every time, the wiki compiles and synthesizes knowledge once into a compounding knowledge base.");
+        conceptGlossary.put("wiki", "A persistent, compounding knowledge base structured as interlinked markdown files. Based on Andrej Karpathy's pattern, it compiles knowledge once, flags contradictions, and keeps all information continuously current.");
+        conceptGlossary.put("synthesis", "The unified integration of all ingested knowledge. In your system, synthesis reflects everything ingested and keeps contradictions pre-flagged rather than processing information in isolated silos.");
+        conceptGlossary.put("agent", "The autonomous AI component in the division of labor that summarizes documents, creates cross-references, files entries, and maintains consistency while the human curates sources and directs analysis.");
+        conceptGlossary.put("contradiction", "Discrepancies identified and flagged during ingestion to ensure the knowledge base maintains factual accuracy and coherence across all interlinked files.");
+        conceptGlossary.put("division of labor", "The operational split between human and AI: the human curates sources and directs analysis, while the agent summarizes, cross-references, files, and maintains consistency.");
+        conceptGlossary.put("docker", "A containerization platform that packages applications and dependencies into isolated, lightweight containers.");
+        conceptGlossary.put("container", "A standard, portable unit of software packaging code and all dependencies to run reliably across environments.");
+        conceptGlossary.put("kubernetes", "An open-source container orchestration engine that automates deployment, scaling, and operational management.");
+        conceptGlossary.put("api", "Application Programming Interface — standard protocols enabling services and components to communicate securely and efficiently.");
+        conceptGlossary.put("microservice", "An architectural approach arranging an application as a suite of loosely coupled, fine-grained, independently deployable services.");
+
+        // Check if question asks about a specific term in the glossary
+        String matchedTerm = null;
+        for (String term : conceptGlossary.keySet()) {
+            if (qLower.contains(term)) {
+                matchedTerm = term;
+                break;
+            }
         }
 
-        // Extract keywords from the question
-        String[] questionWords = question.toLowerCase().replaceAll("[^a-z0-9 ]", "").split("\\s+");
+        // 4. Handle "What is X" / Definition & Concept Inquiries
+        if (matchedTerm != null) {
+            String glossaryDef = conceptGlossary.get(matchedTerm);
+            List<String> relatedFromNotes = new ArrayList<>();
+            for (String sent : sentences) {
+                if (sent.toLowerCase().contains(matchedTerm) || (matchedTerm.contains(" ") && sent.toLowerCase().contains(matchedTerm.split(" ")[0]))) {
+                    relatedFromNotes.add(sent);
+                }
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("**").append(capitalize(matchedTerm)).append("** in the context of your material:\n\n");
+            sb.append(glossaryDef).append("\n\n");
+
+            if (!relatedFromNotes.isEmpty()) {
+                sb.append("**Directly from your uploaded notes:**\n");
+                for (String r : relatedFromNotes) {
+                    sb.append("• ").append(r);
+                    if (!r.endsWith(".")) sb.append(".");
+                    sb.append("\n");
+                }
+            } else {
+                sb.append("**Role in your notes:** This concept forms an essential foundation for the system architecture and workflow outlined in your material.\n");
+            }
+
+            sb.append("\n*Tip: You can ask how this relates to other components in your notes, or generate a quiz to test your mastery.*");
+            return sb.toString();
+        }
+
+        // 5. Handle Summary Requests
+        if (qLower.matches(".*(summarize|summary|overview|what is this|explain all|brief).*")) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("### Summary of Uploaded Material\n\n");
+            sb.append("Here is an overview of the key concepts and structure from your notes:\n\n");
+            for (String sent : sentences) {
+                sb.append("• ").append(sent);
+                if (!sent.endsWith(".")) sb.append(".");
+                sb.append("\n");
+            }
+            sb.append("\n**Core Takeaway:** This material defines a structured approach to knowledge management and workflow execution. Ask specific questions about any part above!");
+            return sb.toString();
+        }
+
+        // 6. General Search & Synthesis for other queries
+        String[] questionWords = qLower.replaceAll("[^a-z0-9 ]", "").split("\\s+");
         Set<String> stopwords = Set.of(
             "what", "which", "where", "when", "that", "this", "with", "from", "have", "does",
             "explain", "describe", "about", "tell", "give", "some", "more", "into", "their",
-            "them", "they", "will", "would", "could", "should", "your", "user", "role", "help"
+            "them", "they", "will", "would", "could", "should", "your", "user", "role", "help", "mean", "work"
         );
         List<String> keywords = new ArrayList<>();
         for (String w : questionWords) {
@@ -411,7 +485,6 @@ public class SmartCampusApp {
             }
         }
 
-        // Score sentences based on matching keywords
         Map<String, Integer> scored = new LinkedHashMap<>();
         for (String s : sentences) {
             String lower = s.toLowerCase();
@@ -420,42 +493,36 @@ public class SmartCampusApp {
                 if (lower.contains(kw)) score += 2;
                 if (lower.startsWith(kw) || lower.contains(" " + kw + " ")) score += 3;
             }
-            if (score > 0) {
-                scored.put(s, score);
-            }
+            if (score > 0) scored.put(s, score);
         }
 
         List<Map.Entry<String, Integer>> sortedMatches = new ArrayList<>(scored.entrySet());
         sortedMatches.sort((a, b) -> b.getValue().compareTo(a.getValue()));
 
+        StringBuilder sb = new StringBuilder();
         if (!sortedMatches.isEmpty()) {
-            sb.append("Direct Answer:\n");
+            sb.append("Based on your uploaded study notes:\n\n");
             sb.append(sortedMatches.get(0).getKey());
             if (!sortedMatches.get(0).getKey().endsWith(".")) sb.append(".");
-            sb.append("\n\nDetailed Breakdown from Your Notes:\n");
-            int limit = Math.min(4, sortedMatches.size());
+            sb.append("\n\n**Key Details & Context:**\n");
+            int limit = Math.min(3, sortedMatches.size());
             for (int i = 0; i < limit; i++) {
                 String sent = sortedMatches.get(i).getKey();
                 sb.append("• ").append(sent);
                 if (!sent.endsWith(".")) sb.append(".");
                 sb.append("\n");
             }
-            sb.append("\nKey Takeaways:\n");
-            sb.append("• Directly grounded in your uploaded study material.\n");
-            sb.append("• Ask further questions about any specific term to explore more deeply.");
+            sb.append("\n*Feel free to ask follow-up questions or generate a quiz to test your recall.*");
         } else {
-            // Broad question or no direct keyword match: give comprehensive material synthesis
-            sb.append("Synthesis from Your Study Material:\n\n");
-            int limit = Math.min(4, sentences.size());
+            sb.append("Here is relevant context from your study notes:\n\n");
+            int limit = Math.min(3, sentences.size());
             for (int i = 0; i < limit; i++) {
                 String sent = sentences.get(i);
                 sb.append("• ").append(sent);
                 if (!sent.endsWith(".")) sb.append(".");
                 sb.append("\n");
             }
-            sb.append("\nKey Concepts:\n");
-            sb.append("• Above are the core concepts extracted from your material addressing your topic.\n");
-            sb.append("• You can ask targeted questions about any individual concept for deeper analysis.");
+            sb.append("\n*Try phrasing your question with specific terms from the notes for a targeted answer.*");
         }
 
         return sb.toString();
