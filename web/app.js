@@ -240,6 +240,7 @@ function initStudyHub() {
     const val = document.getElementById("studyInlineKeyInput")?.value.trim() || "";
     const selModel = document.getElementById("studyInlineModelSelect")?.value || "gemini-2.5-flash";
     updateApiKeyUI(val, selModel);
+    validateAndFetchModels(val);
     document.getElementById("studyInlineKeyBox").style.display = "none";
     showToast(val ? `Connected to ${selModel.toUpperCase()}` : "API Key cleared.");
   });
@@ -791,9 +792,54 @@ function initApiKeyModal() {
     const key = input ? input.value.trim() : "";
     const selectedModel = modelSelect ? modelSelect.value : "gemini-2.5-flash";
     updateApiKeyUI(key, selectedModel);
+    validateAndFetchModels(key);
     modal?.classList.remove("open");
     showToast(key ? `Connected to ${selectedModel.toUpperCase()}` : "Settings Saved");
   });
+
+  if (geminiApiKey) {
+    validateAndFetchModels(geminiApiKey);
+  }
+}
+
+async function validateAndFetchModels(key) {
+  if (!key) return;
+  try {
+    const res = await fetch(`/api/config/models?key=${encodeURIComponent(key)}`);
+    const data = await res.json();
+    if (data.status === "OK" && Array.isArray(data.models) && data.models.length > 0) {
+      const modalSelect = document.getElementById("geminiModelSelect");
+      const inlineSelect = document.getElementById("studyInlineModelSelect");
+      const populate = (sel) => {
+        if (!sel) return;
+        const currentVal = sel.value || geminiModel;
+        sel.innerHTML = "";
+        data.models.forEach(m => {
+          const opt = document.createElement("option");
+          opt.value = m;
+          opt.textContent = m;
+          if (m === currentVal) opt.selected = true;
+          sel.appendChild(opt);
+        });
+      };
+      populate(modalSelect);
+      populate(inlineSelect);
+
+      if (!data.models.includes(geminiModel)) {
+        const flashModel = data.models.find(m => m.toLowerCase().includes("flash")) || data.models[0];
+        geminiModel = flashModel;
+        localStorage.setItem("smartcampus_gemini_model", geminiModel);
+        if (modalSelect) modalSelect.value = geminiModel;
+        if (inlineSelect) inlineSelect.value = geminiModel;
+        const activeModelLabel = document.getElementById("activeModelLabel");
+        if (activeModelLabel) activeModelLabel.textContent = geminiModel.toUpperCase().replace(/-/g, " ");
+      }
+    } else if (data.status === "ERROR") {
+      showToast(`Key Warning: ${data.error}`);
+    }
+  } catch (err) {
+    // Network fallback
+  }
 }
 
 // -------------------------------------------------------------
