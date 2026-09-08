@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartCampus AI — Academic & Career Intelligence</title>
+  <meta name="description" content="AI-powered campus intelligence platform for document Q&A, exam flashcards, resume skill analysis, and technical mock interviews.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Calistoga&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Ambient Glow Elements -->
+  <div class="glow-orb glow-top-left" aria-hidden="true"></div>
+  <div class="glow-orb glow-bottom-right" aria-hidden="true"></div>
+
+  <!-- Header / Nav -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="brand-group">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+            <path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">SmartCampus<span class="gradient-text">.AI</span></span>
+          <span class="brand-tag">Java 21 · Ponytail Stdlib</span>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <div class="status-pill">
+          <span class="pulsing-dot"></span>
+          <span id="systemStatusText" class="font-mono">ONLINE · JAVA SERVER</span>
+        </div>
+        <button id="btnOpenKeyModal" class="btn btn-secondary btn-sm" title="Configure Google Gemini API Key">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+          </svg>
+          <span class="font-mono" id="keyLabel">API KEY</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Wrapper -->
+  <main class="main-wrapper">
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="section-label">
+        <span class="label-dot"></span>
+        <span>INTELLIGENT CAMPUS ECOSYSTEM</span>
+      </div>
+
+      <h1 class="hero-headline font-display">
+        Accelerate your studies, <br class="hidden-mobile">
+        master your <span class="headline-highlight">career<span class="gradient-underline"></span></span>.
+      </h1>
+
+      <p class="hero-subtext">
+        An integrated AI intelligence suite for students and faculty. Ingest lecture notes for contextual Q&A, generate instant exam quizzes, and perform automated resume gap analysis for campus placements.
+      </p>
+
+      <!-- Navigation Tabs -->
+      <div class="tabs-container" role="tablist">
+        <button id="tabStudyBtn" class="tab-btn active" role="tab" aria-selected="true" aria-controls="studyHubPanel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+          Academic Study Hub
+        </button>
+        <button id="tabCareerBtn" class="tab-btn" role="tab" aria-selected="false" aria-controls="careerLabPanel">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+          </svg>
+          Career & Placement Lab
+        </button>
+      </div>
+    </section>
+
+    <!-- PANEL 1: Academic Study Hub -->
+    <section id="studyHubPanel" class="tab-panel active" role="tabpanel">
+      <!-- Ingestion Card -->
+      <div class="card card-featured mb-8">
+        <div class="card-inner">
+          <div class="card-header">
+            <div>
+              <div class="section-label mb-2">
+                <span class="label-dot"></span>
+                <span>DOCUMENT REPOSITORY</span>
+              </div>
+              <h2 class="card-title font-display">Course Materials & Lecture Notes</h2>
+              <p class="card-desc">Paste your textbook chapters, lecture transcripts, or syllabus notes below to activate contextual AI Q&A and Quiz generation.</p>
+            </div>
+            <div class="card-tools">
+              <button id="btnLoadSampleNotes" class="btn btn-secondary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Load Sample Java Notes
+              </button>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <textarea id="studyNotesInput" class="custom-textarea" rows="5" placeholder="Paste your study notes, module outlines, or code concepts here..."></textarea>
+            <div class="textarea-footer">
+              <span id="studyWordCount" class="font-mono text-muted">0 words · 0 characters</span>
+              <button id="btnClearNotes" class="btn btn-ghost btn-xs text-muted">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Two Column Study Lab: Left Q&A, Right Quiz Generator -->
+      <div class="grid-2col gap-6">
+        <!-- AI Q&A Assistant -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="section-label mb-2">
+                <span class="label-dot"></span>
+                <span>RETRIEVAL AGENT</span>
+              </div>
+              <h3 class="card-title font-display">Ask Course AI</h3>
+              <p class="card-desc">Get instant answers grounded strictly in your uploaded materials.</p>
+            </div>
+          </div>
+
+          <div class="quick-chips mb-4">
+            <span class="chip-label font-mono">Suggested:</span>
+            <button class="chip" data-question="What are the 4 fundamental pillars of OOP in Java and how do they work?">OOP Pillars</button>
+            <button class="chip" data-question="Explain the difference between method overloading and method overriding in Java.">Overload vs Override</button>
+            <button class="chip" data-question="What is the Java Virtual Machine (JVM) memory architecture?">JVM Architecture</button>
+          </div>
+
+          <div class="chat-display" id="studyChatDisplay">
+            <div class="chat-bubble ai-bubble">
+              <div class="bubble-header">
+                <span class="bubble-sender font-mono">CAMPUS-AI</span>
+                <span class="bubble-time font-mono">READY</span>
+              </div>
+              <p>Hello! Upload or paste your study notes above, then ask me anything. I can synthesize concepts, explain edge cases, or summarize key exam takeaways.</p>
+            </div>
+          </div>
+
+          <form id="studyAskForm" class="chat-input-bar">
+            <input type="text" id="studyQuestionInput" class="custom-input" placeholder="Type your academic question here..." required>
+            <button type="submit" id="btnAskAI" class="btn btn-primary">
+              <span>Ask AI</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </button>
+          </form>
+        </div>
+
+        <!-- Quiz & Flashcard Generator -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="section-label mb-2">
+                <span class="label-dot"></span>
+                <span>EXAM READINESS</span>
+              </div>
+              <h3 class="card-title font-display">Revision Flashcards & Quiz</h3>
+              <p class="card-desc">Generate active recall quizzes directly from your course text.</p>
+            </div>
+            <button id="btnGenerateQuiz" class="btn btn-secondary btn-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+              </svg>
+              Generate Quiz
+            </button>
+          </div>
+
+          <div id="quizContainer" class="quiz-container">
+            <div class="empty-state">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-muted mb-3">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+              <h4 class="font-display">No Quiz Generated Yet</h4>
+              <p class="text-muted text-sm">Click "Generate Quiz" above to synthesize instant multiple-choice practice questions from your notes.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL 2: Career & Placement Lab -->
+    <section id="careerLabPanel" class="tab-panel" role="tabpanel">
+      <!-- Resume & Target Role Setup -->
+      <div class="card card-featured mb-8">
+        <div class="card-inner">
+          <div class="card-header">
+            <div>
+              <div class="section-label mb-2">
+                <span class="label-dot"></span>
+                <span>PLACEMENT INTELLIGENCE</span>
+              </div>
+              <h2 class="card-title font-display">Resume Match & Skill Gap Radar</h2>
+              <p class="card-desc">Compare student profile against real tech roles to evaluate match percentage, identify blindspots, and prepare for campus interviews.</p>
+            </div>
+            <div class="card-tools">
+              <button id="btnLoadSampleResume" class="btn btn-secondary btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                Load Sample Student Resume
+              </button>
+            </div>
+          </div>
+
+          <div class="grid-2col gap-6 mb-4">
+            <div>
+              <label for="careerTargetRole" class="field-label font-mono">TARGET JOB ROLE</label>
+              <select id="careerTargetRole" class="custom-select">
+                <option value="Java Backend Developer (Spring Boot, REST, SQL, Microservices)">Java Backend Developer (Spring Boot, SQL, Microservices)</option>
+                <option value="Full Stack Software Engineer (Java, JavaScript, React/HTML, System Design)">Full Stack Software Engineer (Java, JS, System Design)</option>
+                <option value="Cloud & DevOps Engineer (Java, Docker, Kubernetes, CI/CD, AWS)">Cloud & DevOps Engineer (Java, Docker, CI/CD, AWS)</option>
+                <option value="AI & Machine Learning Engineer (Java, Python, LLMs, RAG, Data Structures)">AI & Machine Learning Engineer (LLMs, RAG, DSA)</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="careerStudentDegree" class="field-label font-mono">TARGET PLACEMENT DRIVE</label>
+              <input type="text" id="careerStudentDegree" class="custom-input" value="B.Tech Computer Science / Information Tech - 2026 Batch">
+            </div>
+          </div>
+
+          <div class="input-group mb-4">
+            <label for="careerResumeInput" class="field-label font-mono">RESUME TEXT & SKILLSET</label>
+            <textarea id="careerResumeInput" class="custom-textarea" rows="6" placeholder="Paste your resume summary, technical skills, projects, and certifications here..."></textarea>
+          </div>
+
+          <div class="actions-right">
+            <button id="btnAnalyzeResume" class="btn btn-primary btn-lg">
+              <span>Run Career & Gap Analysis</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Analysis Results Container -->
+      <div id="careerResultsContainer" class="career-results mb-8" style="display: none;">
+        <div class="grid-3col gap-6 mb-6">
+          <!-- Radial Score Card -->
+          <div class="card text-center flex-center-col">
+            <div class="section-label mb-2">
+              <span class="label-dot"></span>
+              <span>READINESS SCORE</span>
+            </div>
+            <div class="score-radial">
+              <svg width="140" height="140" viewBox="0 0 140 140">
+                <circle class="score-bg" cx="70" cy="70" r="58" stroke-width="10"/>
+                <circle id="scoreProgressCircle" class="score-bar" cx="70" cy="70" r="58" stroke-width="10" stroke-dasharray="364.4" stroke-dashoffset="100"/>
+              </svg>
+              <div class="score-content">
+                <span id="scoreNumber" class="score-val font-display">82%</span>
+                <span class="score-sub font-mono">MATCH</span>
+              </div>
+            </div>
+            <h4 id="scoreHeadline" class="font-display mt-2">Strong Candidate</h4>
+            <p id="scoreSubtitle" class="text-muted text-sm">Profile aligns with 8 out of 10 primary competencies.</p>
+          </div>
+
+          <!-- Matched Skills -->
+          <div class="card">
+            <div class="section-label mb-2">
+              <span class="label-dot"></span>
+              <span>VERIFIED COMPETENCIES</span>
+            </div>
+            <h3 class="card-title font-display text-emerald">Matched Skills</h3>
+            <p class="card-desc">Skills present on your resume that match the job profile:</p>
+            <div id="matchedSkillsList" class="skill-badges mt-4">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <!-- Missing Skills -->
+          <div class="card">
+            <div class="section-label mb-2">
+              <span class="label-dot"></span>
+              <span>GROWTH OPPORTUNITIES</span>
+            </div>
+            <h3 class="card-title font-display text-amber">Skill Gaps</h3>
+            <p class="card-desc">Crucial keywords expected for this role not found on your profile:</p>
+            <div id="missingSkillsList" class="skill-badges mt-4">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Recommendations Banner -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <div>
+              <div class="section-label mb-2">
+                <span class="label-dot"></span>
+                <span>STRATEGIC ROADMAP</span>
+              </div>
+              <h3 class="card-title font-display">Actionable Placement Roadmap</h3>
+            </div>
+          </div>
+          <div id="careerRoadmapContent" class="roadmap-steps">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+      </div>
+
+      <!-- INVERTED CONTRAST SECTION: AI Mock Interview Coach -->
+      <div class="inverted-section">
+        <div class="inverted-inner">
+          <div class="section-label section-label-inverted mb-3">
+            <span class="label-dot"></span>
+            <span>SIMULATION LAB</span>
+          </div>
+
+          <div class="inverted-header">
+            <div>
+              <h2 class="inverted-title font-display">AI Technical Mock Interview</h2>
+              <p class="inverted-desc">Practice answering rigorous technical interview questions tailored specifically to your resume and target role with instant AI grading.</p>
+            </div>
+            <button id="btnStartInterview" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              <span>Start New Interview Session</span>
+            </button>
+          </div>
+
+          <div id="interviewSessionBox" class="interview-box mt-6" style="display: none;">
+            <div class="interview-question-card">
+              <div class="font-mono text-xs text-accent uppercase mb-1">CURRENT QUESTION:</div>
+              <h3 id="currentInterviewQuestion" class="font-display text-xl text-white">Loading question...</h3>
+            </div>
+
+            <div class="mt-4">
+              <label for="interviewUserAnswer" class="field-label text-slate-300 font-mono">YOUR ANSWER / CODE EXPLANATION:</label>
+              <textarea id="interviewUserAnswer" class="custom-textarea textarea-inverted" rows="4" placeholder="Explain your approach, trade-offs, and technical rationale here..."></textarea>
+            </div>
+
+            <div class="actions-right mt-3">
+              <button id="btnSubmitAnswer" class="btn btn-primary">
+                <span>Submit Answer for AI Grading</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- AI Feedback Box -->
+            <div id="interviewFeedbackBox" class="interview-feedback mt-6" style="display: none;">
+              <div class="feedback-header">
+                <span class="font-mono text-xs text-emerald font-semibold">AI INTERVIEWER FEEDBACK</span>
+                <span id="interviewScoreBadge" class="score-pill font-mono">GRADE: 8.5/10</span>
+              </div>
+              <p id="interviewFeedbackText" class="mt-2 text-slate-200"></p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- API Key Modal -->
+  <div id="keyModal" class="modal-overlay" aria-hidden="true">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title font-display">Google Gemini API Key</h3>
+        <button id="btnCloseKeyModal" class="btn-icon" aria-label="Close modal">&times;</button>
+      </div>
+      <p class="modal-desc">
+        To use live AI generation, paste your free Google Gemini API key below. If left blank, SmartCampus AI automatically operates in <strong>Evaluator/Offline Mode</strong> with built-in heuristic intelligence!
+      </p>
+      <div class="input-group my-4">
+        <label for="geminiApiKeyInput" class="field-label font-mono">GEMINI API KEY</label>
+        <input type="password" id="geminiApiKeyInput" class="custom-input" placeholder="AIzaSy...">
+      </div>
+      <div class="modal-actions">
+        <button id="btnSaveApiKey" class="btn btn-primary w-full">Save Key</button>
+      </div>
+      <p class="modal-note font-mono text-xs text-muted mt-3">
+        * Key is saved safely in browser session / sent to local Java server memory.
+      </p>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-brand">
+        <span class="font-display text-lg">SmartCampus<span class="gradient-text">.AI</span></span>
+        <span class="text-sm text-muted">A Ponytail-Engineered Java 21 College Capstone System</span>
+      </div>
+      <div class="footer-meta font-mono text-xs text-muted">
+        <span>Java Standard Library · Minimalist Modern Design · Built for College Evaluation</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
