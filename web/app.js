@@ -808,27 +808,11 @@ async function validateAndFetchModels(key) {
     const res = await fetch(`/api/config/models?key=${encodeURIComponent(key)}`);
     const data = await res.json();
     if (data.status === "OK" && Array.isArray(data.models) && data.models.length > 0) {
-      const modalSelect = document.getElementById("geminiModelSelect");
-      const inlineSelect = document.getElementById("studyInlineModelSelect");
-      const populate = (sel) => {
-        if (!sel) return;
-        const currentVal = sel.value || geminiModel;
-        sel.innerHTML = "";
-        data.models.forEach(m => {
-          const opt = document.createElement("option");
-          opt.value = m;
-          opt.textContent = m;
-          if (m === currentVal) opt.selected = true;
-          sel.appendChild(opt);
-        });
-      };
-      populate(modalSelect);
-      populate(inlineSelect);
-
       if (!data.models.includes(geminiModel)) {
-        const flashModel = data.models.find(m => m.toLowerCase().includes("flash")) || data.models[0];
-        geminiModel = flashModel;
+        geminiModel = data.models[0];
         localStorage.setItem("smartcampus_gemini_model", geminiModel);
+        const modalSelect = document.getElementById("geminiModelSelect");
+        const inlineSelect = document.getElementById("studyInlineModelSelect");
         if (modalSelect) modalSelect.value = geminiModel;
         if (inlineSelect) inlineSelect.value = geminiModel;
         const activeModelLabel = document.getElementById("activeModelLabel");

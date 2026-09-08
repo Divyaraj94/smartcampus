@@ -336,11 +336,32 @@ public class SmartCampusApp {
             }
 
             try {
-                List<String> models = getOrFetchAvailableModels(apiKey);
+                List<String> allModels = getOrFetchAvailableModels(apiKey);
+                List<String> textOnly = new ArrayList<>();
+                String[] standardTextModels = {
+                    "gemini-2.5-flash",
+                    "gemini-2.0-flash",
+                    "gemini-1.5-flash",
+                    "gemini-2.5-pro"
+                };
+                for (String std : standardTextModels) {
+                    if (allModels.contains(std)) {
+                        textOnly.add(std);
+                    }
+                }
+                // If standard names not present, add any clean flash/pro text model
+                if (textOnly.isEmpty()) {
+                    for (String m : allModels) {
+                        if (isTextGenerationModel(m) && !textOnly.contains(m)) {
+                            textOnly.add(m);
+                        }
+                    }
+                }
+
                 StringBuilder sb = new StringBuilder("{\"status\":\"OK\",\"models\":[");
-                for (int i = 0; i < models.size(); i++) {
+                for (int i = 0; i < textOnly.size(); i++) {
                     if (i > 0) sb.append(",");
-                    sb.append("\"").append(escapeJson(models.get(i))).append("\"");
+                    sb.append("\"").append(escapeJson(textOnly.get(i))).append("\"");
                 }
                 sb.append("]}");
                 sendJsonResponse(exchange, 200, sb.toString());
@@ -352,14 +373,14 @@ public class SmartCampusApp {
     }
 
     // =========================================================================
-    // Dynamic Model Discovery & Verification
+    // Dynamic Model Discovery & Verification (Strictly Text Generation Models)
     // =========================================================================
     private static boolean isTextGenerationModel(String modelName) {
         String lower = modelName.toLowerCase();
         if (!lower.startsWith("gemini") && !lower.startsWith("gemma")) {
             return false;
         }
-        // Filter out non-text modalities
+        // Strictly filter out non-text modalities
         if (lower.contains("tts") ||
             lower.contains("audio") ||
             lower.contains("image") ||
@@ -369,6 +390,10 @@ public class SmartCampusApp {
             lower.contains("robotics") ||
             lower.contains("clip") ||
             lower.contains("customtools") ||
+            lower.contains("banana") ||
+            lower.contains("omni") ||
+            lower.contains("research") ||
+            lower.contains("preview") ||
             lower.contains("computer-use")) {
             return false;
         }
@@ -427,8 +452,8 @@ public class SmartCampusApp {
             if (!lastError.isBlank()) {
                 throw new RuntimeException(lastError);
             }
-            // Fallback list if ListModels is blocked but key is active
-            discovered = Arrays.asList("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.5-pro", "gemini-pro-latest");
+            // Standard text models fallback
+            discovered = Arrays.asList("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro");
         }
 
         System.out.println("[Gemini] Active text models for key: " + discovered);
@@ -437,12 +462,12 @@ public class SmartCampusApp {
     }
 
     // =========================================================================
-    // Google Gemini REST API Client (Dynamic Model Selection & Auto-Retry)
+    // Google Gemini REST API Client (Pure Text Generation Models Only)
     // =========================================================================
     private static String callGeminiApi(String apiKey, String prompt, String preferredModel) throws Exception {
         List<String> available = getOrFetchAvailableModels(apiKey);
 
-        // Build candidate list ordered by priority
+        // Build candidate list ordered by priority - strictly text models
         List<String> candidateModels = new ArrayList<>();
         if (preferredModel != null && !preferredModel.isBlank()) {
             String p = preferredModel.trim();
@@ -454,33 +479,30 @@ public class SmartCampusApp {
             }
         }
 
-        // Add top production flash models first
-        for (String prio : new String[]{"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash"}) {
+        // Standard text models in priority order
+        String[] textPriorities = {
+            "gemini-2.5-flash",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-flash-latest",
+            "gemini-2.5-flash-lite",
+            "gemini-2.5-pro",
+            "gemini-pro-latest"
+        };
+        for (String prio : textPriorities) {
             if (available.contains(prio) && !candidateModels.contains(prio)) {
                 candidateModels.add(prio);
             }
         }
 
-        // Add other flash models
+        // Add any remaining clean text models
         for (String av : available) {
-            if (av.toLowerCase().contains("flash") && !candidateModels.contains(av)) {
-                candidateModels.add(av);
-            }
-        }
-        // Add pro models
-        for (String av : available) {
-            if (av.toLowerCase().contains("pro") && !candidateModels.contains(av)) {
-                candidateModels.add(av);
-            }
-        }
-        // Add any remaining text models
-        for (String av : available) {
-            if (!candidateModels.contains(av)) {
+            if (isTextGenerationModel(av) && !candidateModels.contains(av)) {
                 candidateModels.add(av);
             }
         }
 
-        System.out.println("[Gemini] Execution order: " + candidateModels);
+        System.out.println("[Gemini] Pure text execution order: " + candidateModels);
         Exception lastException = null;
 
         String payload = "{"
