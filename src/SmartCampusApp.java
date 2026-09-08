@@ -21,16 +21,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * SmartCampus AI — Core Server
+ * SmartCampus AI -- Core Server
  *
- * Engineered with the Ponytail Philosophy:
- * - 100% Java 21 Standard Library (Zero third-party Maven/Gradle dependencies)
- * - Built-in com.sun.net.httpserver for microsecond REST responses
- * - Built-in java.net.http.HttpClient for Google Gemini integration
- * - Dual Engine: Live Google Gemini AI + Offline Heuristic Analyzer for robust campus viva grading
- *
- * // ponytail: stdlib JSON serializer/parser used to avoid heavy Jackson/Gson libraries;
- * // upgrade path: add Jackson if dynamic schema reflection is ever needed.
+ * Study & Career Intelligence Platform
+ * - Dual Engine: Live Google Gemini AI + Offline Heuristic Analyzer
+ * - REST API on port 8080
  */
 public class SmartCampusApp {
 
@@ -57,10 +52,8 @@ public class SmartCampusApp {
 
         server.start();
         System.out.println("==========================================================");
-        System.out.println("  SmartCampus AI Platform — Java 21 LTS Server Active");
+        System.out.println("  SmartCampus AI Platform — Server Active");
         System.out.println("  URL: http://localhost:" + PORT);
-        System.out.println("  Architecture: Ponytail Stdlib (Zero Dependency Bloat)");
-        System.out.println("  Design: Minimalist Modern (Electric Blue / Slate)");
         System.out.println("==========================================================");
     }
 
@@ -104,10 +97,8 @@ public class SmartCampusApp {
         public void handle(HttpExchange exchange) throws IOException {
             String json = "{"
                     + "\"status\":\"ONLINE\","
-                    + "\"runtime\":\"Java 21 LTS\","
-                    + "\"engine\":\"Ponytail Stdlib Server\","
                     + "\"hasApiKey\":" + (!globalGeminiKey.isBlank()) + ","
-                    + "\"mode\":\"" + (!globalGeminiKey.isBlank() ? "GEMINI CLOUD AI" : "OFFLINE HEURISTIC AI") + "\""
+                    + "\"mode\":\"" + (!globalGeminiKey.isBlank() ? "LIVE AI" : "OFFLINE") + "\""
                     + "}";
             sendJsonResponse(exchange, 200, json);
         }
@@ -382,51 +373,66 @@ public class SmartCampusApp {
     }
 
     // =========================================================================
-    // Intelligent Offline Heuristic Engines (Ensures Viva Never Fails!)
+    // Offline Heuristic Engines (Dynamic Fallback)
     // =========================================================================
     private static String generateHeuristicStudyAnswer(String question, String notes) {
-        String q = question.toLowerCase();
         StringBuilder sb = new StringBuilder();
 
-        if (q.contains("oop") || q.contains("pillar") || q.contains("object")) {
-            sb.append("In Java, Object-Oriented Programming (OOP) is structured around four foundational pillars:\n\n")
-              .append("1. Encapsulation: Binding data (fields) and methods into a single unit (class), securing internal state via private variables and getter/setter accessors.\n")
-              .append("2. Inheritance: Code reuse where a child class extends a parent class (`class Child extends Parent`), inheriting state and behaviors.\n")
-              .append("3. Polymorphism: Performing a single action in different ways—static polymorphism (method overloading) and dynamic polymorphism (method overriding with `@Override`).\n")
-              .append("4. Abstraction: Hiding internal complexity while exposing high-level contracts through abstract classes and interfaces.\n\n")
-              .append("Key takeaway for exam: Encapsulation protects data integrity; Abstraction manages cognitive complexity.");
-        } else if (q.contains("jvm") || q.contains("memory") || q.contains("heap") || q.contains("garbage")) {
-            sb.append("Java Virtual Machine (JVM) Architecture & Memory Blueprint:\n\n")
-              .append("• Heap Memory: Holds all object instances and arrays. Monitored by the Garbage Collector (Young Gen, Old/Tenured Gen).\n")
-              .append("• Method Area (Metaspace): Stores class bytecode, method metadata, runtime constant pool, and static variables.\n")
-              .append("• JVM Stack: Allocated per thread. Stores stack frames containing local variables, operands, and return values.\n")
-              .append("• PC Register: Tracks the execution address of the current JVM instruction for active threads.\n")
-              .append("• Garbage Collection (GC): Automatically reclaims unreferenced heap objects using Mark-Sweep algorithms.");
-        } else if (q.contains("overload") || q.contains("overrid")) {
-            sb.append("Overloading vs. Overriding in Java:\n\n")
-              .append("• Method Overloading (Compile-time / Static):\n")
-              .append("  - Methods share the same name in the same class but have DIFFERENT parameter signatures (count, types).\n")
-              .append("  - Return type does not matter for distinction; resolved at compilation.\n\n")
-              .append("• Method Overriding (Runtime / Dynamic):\n")
-              .append("  - Subclass provides a specific implementation of a method defined in its superclass.\n")
-              .append("  - Parameter signature and return type MUST match exactly; resolved dynamically at runtime.");
-        } else {
-            // Contextual extraction from provided notes
-            sb.append("Based on your uploaded course notes:\n\n");
+        // Extract keywords from the question to search in notes
+        String[] questionWords = question.toLowerCase().replaceAll("[^a-z0-9 ]", "").split("\\s+");
+        List<String> keywords = new ArrayList<>();
+        for (String w : questionWords) {
+            if (w.length() > 3 && !List.of("what", "which", "where", "when", "that", "this", "with", "from", "have", "does", "explain", "describe", "about").contains(w)) {
+                keywords.add(w);
+            }
+        }
+
+        // Search provided notes for relevant sentences
+        if (notes != null && !notes.isBlank()) {
             String[] sentences = notes.split("\\. |\\n");
-            int matches = 0;
+            List<String> relevant = new ArrayList<>();
             for (String s : sentences) {
-                if (s.trim().length() > 20) {
-                    sb.append("• ").append(s.trim()).append(".\n");
-                    matches++;
-                    if (matches >= 4) break;
+                String lower = s.trim().toLowerCase();
+                if (lower.length() > 15) {
+                    for (String kw : keywords) {
+                        if (lower.contains(kw)) {
+                            relevant.add(s.trim());
+                            break;
+                        }
+                    }
                 }
             }
-            if (matches == 0) {
-                sb.append("• The question focuses on core Java principles. Ensure your code satisfies encapsulation and robust memory bounds.\n");
-                sb.append("• Verify exceptions are caught using try-catch-finally or try-with-resources blocks.\n");
+
+            if (!relevant.isEmpty()) {
+                sb.append("Based on your uploaded notes:\n\n");
+                int count = 0;
+                for (String r : relevant) {
+                    sb.append("- ").append(r);
+                    if (!r.endsWith(".")) sb.append(".");
+                    sb.append("\n");
+                    count++;
+                    if (count >= 5) break;
+                }
+            } else {
+                // No keyword match, return first meaningful sentences
+                sb.append("From your notes:\n\n");
+                int count = 0;
+                for (String s : sentences) {
+                    if (s.trim().length() > 20) {
+                        sb.append("- ").append(s.trim());
+                        if (!s.trim().endsWith(".")) sb.append(".");
+                        sb.append("\n");
+                        count++;
+                        if (count >= 4) break;
+                    }
+                }
+                if (count == 0) {
+                    sb.append("Your notes are quite brief. Try pasting more detailed content for better answers.");
+                }
             }
-            sb.append("\nTip: Upload additional module slides or lecture notes above for deeper topic analysis.");
+            sb.append("\nTip: Upload more detailed notes for deeper analysis.");
+        } else {
+            sb.append("No notes have been uploaded yet. Please paste your study material in the text area above, then ask your question again for a contextual answer.");
         }
 
         return sb.toString();
@@ -498,160 +504,154 @@ public class SmartCampusApp {
             return sb.toString();
         }
 
-        // Core Fallback for empty or very brief notes
-        return "{"
-                + "\"questions\": ["
-                + "  {"
-                + "    \"question\": \"Which JVM memory area is responsible for allocating object instances and is cleaned by the Garbage Collector?\","
-                + "    \"options\": [\"JVM Stack\", \"Heap Area\", \"Method Area\", \"Program Counter Register\"],"
-                + "    \"correctAnswerIndex\": 1,"
-                + "    \"explanation\": \"All Java object instances and arrays are allocated on the Heap, which is actively managed by the Garbage Collector.\""
-                + "  },"
-                + "  {"
-                + "    \"question\": \"In Java, which mechanism allows a subclass to provide a specific implementation of a method already declared in its superclass?\","
-                + "    \"options\": [\"Method Overloading\", \"Method Overriding\", \"Data Shadowing\", \"Encapsulation\"],"
-                + "    \"correctAnswerIndex\": 1,"
-                + "    \"explanation\": \"Method Overriding occurs at runtime when a subclass redefines an inherited method with an identical signature.\""
-                + "  },"
-                + "  {"
-                + "    \"question\": \"What is the primary benefit of achieving encapsulation through private fields and public getters/setters?\","
-                + "    \"options\": [\"Faster compilation speed\", \"Direct hardware memory mapping\", \"Data hiding and protection of internal state\", \"Automatic multithreading\"],"
-                + "    \"correctAnswerIndex\": 2,"
-                + "    \"explanation\": \"Encapsulation wraps data and code together, preventing unauthorized external modification and enforcing validation rules.\""
-                + "  }"
-                + "]"
-                + "}";
+        // Fallback: not enough extractable content — tell the user to add detailed notes
+        return "{\"questions\": [{\"question\": \"Please paste more detailed notes to generate a quiz. Include definitions, key concepts, or structured content.\", \"options\": [\"Understood\", \"Will do\", \"Got it\", \"OK\"], \"correctAnswerIndex\": 0, \"explanation\": \"The quiz engine works best when your notes contain clear definitions, terms, or structured content like 'Term: Definition' patterns.\"}]}";
     }
 
     private static String generateHeuristicCareerJson(String resume, String targetRole, String jobDescription) {
         String lowerResume = resume.toLowerCase();
         String lowerJd = (jobDescription + " " + targetRole).toLowerCase();
-        int score = 76;
-        int keywordScore = 72;
+        int score = 72;
+        int keywordScore = 68;
         int impactScore = 70;
-        int formatScore = 90;
+        int formatScore = 88;
 
         List<String> matched = new ArrayList<>();
         List<String> missing = new ArrayList<>();
         List<String> atsKeywords = new ArrayList<>();
 
-        // Core Skills matching
-        if (lowerResume.contains("java")) { matched.add("Java 17/21 & OOP Principles"); score += 4; keywordScore += 5; }
-        if (lowerResume.contains("spring")) { matched.add("Spring Boot & RESTful Services"); score += 4; keywordScore += 5; }
-        if (lowerResume.contains("sql") || lowerResume.contains("mysql") || lowerResume.contains("postgres")) { matched.add("Relational Databases (SQL & Indexing)"); score += 3; keywordScore += 4; }
-        if (lowerResume.contains("git")) { matched.add("Version Control & Git Workflows"); score += 2; keywordScore += 3; }
-        if (lowerResume.contains("docker")) { matched.add("Containerization (Docker)"); score += 3; keywordScore += 3; }
-        if (lowerResume.contains("data structures") || lowerResume.contains("algorithm") || lowerResume.contains("leetcode")) { matched.add("Data Structures & Algorithms (DSA)"); score += 3; keywordScore += 4; }
-
-        // ATS Keywords detection from JD
-        if (lowerJd.contains("kafka") && !lowerResume.contains("kafka")) {
-            missing.add("Event Streaming (Apache Kafka)");
-            atsKeywords.add("Apache Kafka");
-        }
-        if (lowerJd.contains("redis") && !lowerResume.contains("redis")) {
-            missing.add("Distributed In-Memory Caching (Redis)");
-            atsKeywords.add("Redis Cache");
-        }
-        if ((lowerJd.contains("microservice") || lowerJd.contains("microservices")) && !lowerResume.contains("microservice")) {
-            missing.add("Microservices Architecture & Resiliency");
-            atsKeywords.add("Microservices Design");
-        }
-        if ((lowerJd.contains("docker") || lowerJd.contains("kubernetes") || lowerJd.contains("ci/cd")) && !lowerResume.contains("kubernetes")) {
-            missing.add("Cloud Orchestration & CI/CD Pipelines");
-            atsKeywords.add("CI/CD Automation");
-        }
-        if (lowerJd.contains("system design") && !lowerResume.contains("system design")) {
-            missing.add("High-Level & Low-Level System Design (HLD/LLD)");
-            atsKeywords.add("System Design (HLD/LLD)");
-        }
-        if (atsKeywords.isEmpty()) {
-            atsKeywords.addAll(List.of("Distributed Transactions", "Kafka Event Bus", "Redis Caching", "Virtual Threads (Java 21)", "Resilience4j Circuit Breaker"));
+        // Generic skills matching — extract significant words from JD and check resume
+        String[] jdTokens = lowerJd.replaceAll("[^a-z0-9/#+. -]", "").split("\\s+");
+        Set<String> checkedWords = new java.util.HashSet<>();
+        for (String token : jdTokens) {
+            if (token.length() > 3 && !List.of("with", "from", "that", "this", "have", "will", "your", "must", "able", "work", "team", "role", "about", "join", "more", "should").contains(token)) {
+                if (checkedWords.add(token)) {
+                    if (lowerResume.contains(token)) {
+                        matched.add(capitalize(token));
+                        score += 2;
+                        keywordScore += 3;
+                    } else {
+                        missing.add(capitalize(token));
+                        atsKeywords.add(capitalize(token));
+                    }
+                }
+            }
+            if (matched.size() + missing.size() >= 20) break;
         }
 
-        if (score > 92) score = 92;
+        // Cap at reasonable limits
+        if (matched.size() > 8) matched = matched.subList(0, 8);
+        if (missing.size() > 8) missing = missing.subList(0, 8);
+        if (atsKeywords.size() > 10) atsKeywords = atsKeywords.subList(0, 10);
+        if (score > 95) score = 95;
+        if (keywordScore > 98) keywordScore = 98;
         int atsOverall = (int) Math.round((keywordScore * 0.45) + (impactScore * 0.35) + (formatScore * 0.20));
 
-        // Dynamically extract user's real resume bullet points if available
+        // Dynamically extract user's real resume bullet points
         List<String> actualBullets = new ArrayList<>();
         for (String line : resume.split("\\r?\\n")) {
             String trimmed = line.trim();
-            if ((trimmed.startsWith("-") || trimmed.startsWith("*") || trimmed.startsWith("•") || trimmed.matches("^\\d+\\..*")) && trimmed.length() > 25) {
-                actualBullets.add(trimmed.replaceAll("^[-*•\\d.]+\\s*", ""));
+            if ((trimmed.startsWith("-") || trimmed.startsWith("*") || trimmed.startsWith("\u2022") || trimmed.matches("^\\d+\\..*")) && trimmed.length() > 25) {
+                actualBullets.add(trimmed.replaceAll("^[-*\u2022\\d.]+\\s*", ""));
             }
         }
 
-        String bullet1Original = actualBullets.size() > 0 ? actualBullets.get(0) : "Built checkout and order processing services with JWT authentication.";
-        String bullet1Improved = actualBullets.size() > 0 ? "Architected and delivered " + actualBullets.get(0) + ", improving service responsiveness and handling high concurrency with 99.9% uptime." : "Architected distributed checkout and payment services in Java 21/Spring Boot with JWT auth, processing 5,000+ orders with 99.9% uptime.";
+        String bullet1Original = actualBullets.size() > 0 ? actualBullets.get(0) : "No bullet points found in resume.";
+        String bullet1Improved = actualBullets.size() > 0
+                ? "Spearheaded " + actualBullets.get(0) + ", delivering measurable impact with quantified results and strong action verbs."
+                : "Upload your resume to get personalized bullet point rewrites.";
 
-        String bullet2Original = actualBullets.size() > 1 ? actualBullets.get(1) : "Designed relational database schemas in MySQL handling 5,000+ orders.";
-        String bullet2Improved = actualBullets.size() > 1 ? "Engineered optimized data models for " + actualBullets.get(1) + ", incorporating indexing and connection pooling to reduce query latency by 35%." : "Engineered normalized MySQL schema with B-Tree indexes and connection pooling, reducing query response times by 32% under load.";
+        String bullet2Original = actualBullets.size() > 1 ? actualBullets.get(1) : "";
+        String bullet2Improved = actualBullets.size() > 1
+                ? "Engineered and optimized " + actualBullets.get(1) + ", incorporating industry best practices to achieve concrete performance gains."
+                : "";
 
-        return "{"
-                + "\"score\": " + score + ","
-                + "\"atsScore\": " + atsOverall + ","
-                + "\"breakdown\": {"
-                + "  \"keywords\": " + keywordScore + ","
-                + "  \"impact\": " + impactScore + ","
-                + "  \"formatting\": " + formatScore
-                + "},"
-                + "\"summary\": \"Profile demonstrates solid foundational engineering in Java and backend concepts for " + escapeJson(targetRole) + ". Adding critical high-throughput keywords will boost your ATS pass rate above 90%.\","
-                + "\"matchedSkills\": [\"" + String.join("\", \"", matched) + "\"],"
-                + "\"missingSkills\": [\"" + String.join("\", \"", missing.isEmpty() ? List.of("Apache Kafka", "Redis Caching", "Kubernetes") : missing) + "\"],"
-                + "\"atsKeywords\": [\"" + String.join("\", \"", atsKeywords) + "\"],"
-                + "\"bulletRewrites\": ["
-                + "  {"
-                + "    \"original\": \"" + escapeJson(bullet1Original) + "\","
-                + "    \"improved\": \"" + escapeJson(bullet1Improved) + "\","
-                + "    \"rationale\": \"Replaces passive description with quantifiable metrics, strong action verb, and measurable impact.\""
-                + "  },"
-                + "  {"
-                + "    \"original\": \"" + escapeJson(bullet2Original) + "\","
-                + "    \"improved\": \"" + escapeJson(bullet2Improved) + "\","
-                + "    \"rationale\": \"Highlights optimization keywords, database design principles, and concrete latency gains.\""
-                + "  }"
-                + "],"
-                + "\"studyGuide\": {"
-                + "  \"coreTopics\": ["
-                + "    \"Java 21 Concurrency: Virtual Threads (Project Loom) vs OS Platform Threads, ThreadPoolExecutor\","
-                + "    \"JVM Performance: G1GC vs ZGC, Heap dump analysis, and Memory Leak troubleshooting\","
-                + "    \"Database Optimization: Composite Indexes, Isolation Levels (ACID), and N+1 Query resolution in Hibernate/JPA\""
-                + "  ],"
-                + "  \"systemDesign\": ["
-                + "    \"High-Throughput Caching: Cache-Aside vs Write-Through patterns with Redis & TTL eviction\","
-                + "    \"Asynchronous Event Streaming: Kafka Partitions, Consumer Groups, and Exactly-Once Semantics\","
-                + "    \"Microservices Resiliency: Circuit Breakers (Resilience4j), Rate Limiting (Token Bucket), and API Gateways\""
-                + "  ],"
-                + "  \"interviewQuestions\": ["
-                + "    {\"question\": \"How do Virtual Threads in Java 21 improve server throughput compared to traditional thread-per-request models?\", \"tip\": \"Explain how carrier threads unmount blocking I/O tasks, enabling millions of concurrent threads without memory exhaustion.\"},"
-                + "    {\"question\": \"How would you handle a distributed transaction across multiple microservices without using a two-phase commit (2PC)?\", \"tip\": \"Describe the Saga Pattern (Choreography vs Orchestration) with compensating transactions for eventual consistency.\"},"
-                + "    {\"question\": \"What causes the N+1 problem in Spring Data JPA, and what are the two best ways to solve it?\", \"tip\": \"Mention JOIN FETCH in JPQL queries and using @EntityGraph to load associations in a single SQL query.\"},"
-                + "    {\"question\": \"Explain the difference between optimistic locking and pessimistic locking with a real banking scenario.\", \"tip\": \"Use @Version attribute for optimistic concurrency and SELECT ... FOR UPDATE for pessimistic lock on critical balances.\"},"
-                + "    {\"question\": \"Design an idempotent payment API endpoint in Spring Boot.\", \"tip\": \"Explain using an Idempotency-Key header stored in Redis with atomic SETNX before charging the customer.\"}"
-                + "  ]"
-                + "},"
-                + "\"roadmap\": ["
-                + "  \"Inject the missing ATS keywords into your Project descriptions before submitting on company portals.\","
-                + "  \"Implement an Idempotent API with Redis in your Spring Boot portfolio project to showcase in interviews.\","
-                + "  \"Review the 5 High-Probability Interview Questions and rehearse the STAR format answers.\""
-                + "]"
-                + "}";
+        // Build study guide dynamically based on missing skills
+        List<String> coreTopics = new ArrayList<>();
+        List<String> designTopics = new ArrayList<>();
+        for (int i = 0; i < missing.size() && i < 3; i++) {
+            coreTopics.add("Study fundamentals of " + missing.get(i) + " as required by the target role.");
+        }
+        if (coreTopics.isEmpty()) coreTopics.add("Review the core competencies listed in the job description.");
+        for (int i = 3; i < missing.size() && designTopics.size() < 3; i++) {
+            designTopics.add("Learn practical applications of " + missing.get(i) + " for this role.");
+        }
+        if (designTopics.isEmpty()) designTopics.add("Review system architecture concepts relevant to your target role.");
+
+        // Build interview questions from JD keywords
+        List<String> interviewQs = new ArrayList<>();
+        int qCount = 0;
+        for (String skill : matched) {
+            if (qCount >= 3) break;
+            interviewQs.add("{\"question\": \"Explain your experience with " + escapeJson(skill) + " and how you applied it in a real project.\", \"tip\": \"Focus on measurable outcomes, trade-offs, and technical depth.\"}");
+            qCount++;
+        }
+        for (String skill : missing) {
+            if (qCount >= 5) break;
+            interviewQs.add("{\"question\": \"How would you approach learning and applying " + escapeJson(skill) + " for this role?\", \"tip\": \"Show awareness of the technology and a concrete learning plan.\"}");
+            qCount++;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("{")
+          .append("\"score\": ").append(score).append(",")
+          .append("\"atsScore\": ").append(atsOverall).append(",")
+          .append("\"breakdown\": {\"keywords\": ").append(keywordScore).append(", \"impact\": ").append(impactScore).append(", \"formatting\": ").append(formatScore).append("},")
+          .append("\"summary\": \"Profile analyzed for ").append(escapeJson(targetRole)).append(". ").append(matched.size()).append(" matching keywords found, ").append(missing.size()).append(" gaps identified.\",")
+          .append("\"matchedSkills\": [\"").append(String.join("\", \"", matched.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
+          .append("\"missingSkills\": [\"").append(String.join("\", \"", missing.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
+          .append("\"atsKeywords\": [\"").append(String.join("\", \"", atsKeywords.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
+          .append("\"bulletRewrites\": [");
+
+        sb.append("{\"original\": \"").append(escapeJson(bullet1Original)).append("\", \"improved\": \"").append(escapeJson(bullet1Improved)).append("\", \"rationale\": \"Adds strong action verb and quantifiable impact.\"}");
+        if (!bullet2Original.isBlank()) {
+            sb.append(",{\"original\": \"").append(escapeJson(bullet2Original)).append("\", \"improved\": \"").append(escapeJson(bullet2Improved)).append("\", \"rationale\": \"Incorporates industry terminology and measurable outcomes.\"}");
+        }
+        sb.append("],");
+
+        sb.append("\"studyGuide\": {")
+          .append("\"coreTopics\": [\"").append(String.join("\", \"", coreTopics.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
+          .append("\"systemDesign\": [\"").append(String.join("\", \"", designTopics.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
+          .append("\"interviewQuestions\": [").append(String.join(",", interviewQs)).append("]")
+          .append("},");
+
+        sb.append("\"roadmap\": [")
+          .append("\"Add the missing ATS keywords to your project descriptions and skills section.\",")
+          .append("\"Prepare structured STAR-format answers for the targeted interview questions.\",")
+          .append("\"Build a small portfolio project showcasing the missing skills for this role.\"")
+          .append("]")
+          .append("}");
+
+        return sb.toString();
+    }
+
+    private static String capitalize(String s) {
+        if (s == null || s.isBlank()) return s;
+        return s.substring(0, 1).toUpperCase() + s.substring(1);
     }
 
     private static String getHeuristicInterviewQuestion(String targetRole) {
-        if (targetRole.toLowerCase().contains("backend") || targetRole.toLowerCase().contains("java")) {
-            return "How does the ConcurrentHashMap in Java achieve thread-safety without locking the entire map like Hashtable, and how does it handle concurrent writes in Java 8+?";
-        } else if (targetRole.toLowerCase().contains("full stack")) {
-            return "When designing a secure REST API between a Java backend and a web client, how do you manage authentication with JWT tokens and mitigate CSRF/XSS vulnerabilities?";
+        String role = targetRole.toLowerCase();
+        if (role.contains("backend") || role.contains("server") || role.contains("api")) {
+            return "Describe how you would design a scalable backend service that handles high concurrency. What trade-offs would you consider?";
+        } else if (role.contains("frontend") || role.contains("ui") || role.contains("react") || role.contains("web")) {
+            return "How do you approach building a responsive, accessible web application? Walk me through your architecture decisions.";
+        } else if (role.contains("data") || role.contains("analyst") || role.contains("machine learning")) {
+            return "Describe a data pipeline or analysis project you worked on. What tools did you use and how did you validate your results?";
+        } else if (role.contains("full stack")) {
+            return "Walk me through how you would architect a full-stack application from database design to the frontend. What technologies would you choose and why?";
+        } else if (role.contains("devops") || role.contains("cloud") || role.contains("sre")) {
+            return "How would you set up a CI/CD pipeline for a production application? What monitoring and alerting would you implement?";
         } else {
-            return "Explain how you would architect a resilient microservice in Java that degrades gracefully when a downstream database or third-party service fails.";
+            return "Tell me about a challenging technical project you worked on. What was your role, what decisions did you make, and what was the outcome?";
         }
     }
 
     private static String evaluateHeuristicInterview(String answer) {
         if (answer.trim().length() < 30) {
-            return "Answer is a bit brief. In campus interviews, structure your response with: 1) Core mechanism, 2) Technical trade-offs, and 3) Real-world implementation example.";
+            return "Your answer is quite brief. Try structuring your response with: 1) The core concept or approach, 2) Technical trade-offs you considered, and 3) A real-world example or outcome.";
         }
-        return "Excellent technical rationale! You articulated the underlying concurrency concepts well and demonstrated practical understanding of thread isolation and memory visibility.";
+        return "Good answer structure. You demonstrated understanding of the topic with practical reasoning. To strengthen further, quantify outcomes and mention specific technologies or patterns you applied.";
     }
 
     // =========================================================================

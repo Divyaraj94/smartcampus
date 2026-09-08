@@ -8,55 +8,25 @@ if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
-// Sample Data for Instant Evaluation & Demo
-const SAMPLE_JAVA_NOTES = `MODULE 1: OBJECT-ORIENTED PROGRAMMING IN JAVA
-1. Encapsulation: Wrapping code and data together into a single unit. Achieved via private fields and public getter/setter methods to protect internal state.
-2. Inheritance: Mechanism where one class acquires properties of another class using the 'extends' keyword. Java supports single class inheritance and multiple interface implementation.
-3. Polymorphism: Ability of an object to take many forms. Includes:
-   - Compile-time (Static): Method Overloading (same method name, different parameter lists).
-   - Runtime (Dynamic): Method Overriding (subclass provides specific implementation of a superclass method).
-4. Abstraction: Hiding implementation details and showing only essential features. Implemented via abstract classes and interfaces.
-
-MODULE 2: JVM ARCHITECTURE & MEMORY MANAGEMENT
-- ClassLoader Subsystem: Loads, links, and initializes .class bytecode.
-- JVM Memory Areas:
-  * Heap Area: Stores all objects and instances (managed by Garbage Collector).
-  * Method Area: Stores class-level data, bytecode, and static variables.
-  * JVM Stack: Stores local variables and partial results per thread execution frame.
-  * Program Counter (PC) Registers: Tracks next instruction address.
-  * Native Method Stack: Handles native C/C++ methods via JNI.
-- Garbage Collection (GC): Automated memory daemon freeing unreferenced heap memory using Mark-Sweep-Compact algorithms.`;
-
-const SAMPLE_STUDENT_RESUME = `NAME: Divyanshu Kumar
-DEGREE: B.Tech in Computer Science & Engineering (2022 - 2026) | CGPA: 8.6/10
-TARGET: Java Software Engineer / Backend Developer
-
-TECHNICAL SKILLS:
-- Core Java, Collections Framework, Multithreading, OOP, Java 17/21
-- Backend: Spring Boot, RESTful APIs, Hibernate, JPA
-- Database: MySQL, PostgreSQL, H2 Database
-- Web: HTML5, CSS3, JavaScript (ES6+), Fetch API
-- Developer Tools: Git, GitHub, Maven, Docker Basics, VS Code
-
-PROJECTS:
-1. Distributed E-Commerce Microservices (Spring Boot, Kafka, Docker)
-   - Built checkout and order processing services with JWT authentication.
-   - Designed relational database schemas in MySQL handling 5,000+ orders.
-2. College Library Management System (Java, JavaFX, SQLite)
-   - Built a desktop management dashboard with search and book reservation indexing.
-
-ACHIEVEMENTS:
-- Solved 300+ LeetCode problems (Data Structures, Binary Trees, Dynamic Programming)
-- Finalist in Smart India Hackathon 2025`;
-
 document.addEventListener("DOMContentLoaded", () => {
   initTabs();
-  initSampleData();
   initStudyHub();
   initCareerLab();
   initResumeFileUpload();
   initApiKeyModal();
   checkBackendHealth();
+
+  // Clear notes button
+  document.getElementById("btnClearNotes")?.addEventListener("click", () => {
+    document.getElementById("studyNotesInput").value = "";
+    updateWordCount();
+  });
+
+  // Word count on notes input
+  document.getElementById("studyNotesInput")?.addEventListener("input", updateWordCount);
+
+  // Word count on resume input
+  document.getElementById("careerResumeInput")?.addEventListener("input", updateResumeWordCount);
 });
 
 // -------------------------------------------------------------
@@ -90,34 +60,8 @@ function initTabs() {
 }
 
 // -------------------------------------------------------------
-// 2. Sample Data Loaders
+// 2. Word Count Helpers
 // -------------------------------------------------------------
-function initSampleData() {
-  const notesInput = document.getElementById("studyNotesInput");
-  const resumeInput = document.getElementById("careerResumeInput");
-
-  document.getElementById("btnLoadSampleNotes")?.addEventListener("click", () => {
-    notesInput.value = SAMPLE_JAVA_NOTES;
-    updateWordCount();
-    showToast("Sample Java Course Notes Loaded!");
-  });
-
-  document.getElementById("btnClearNotes")?.addEventListener("click", () => {
-    notesInput.value = "";
-    updateWordCount();
-  });
-
-  notesInput.addEventListener("input", updateWordCount);
-
-  document.getElementById("btnLoadSampleResume")?.addEventListener("click", () => {
-    resumeInput.value = SAMPLE_STUDENT_RESUME;
-    updateResumeWordCount();
-    showToast("Sample Student Resume Loaded!");
-  });
-
-  resumeInput?.addEventListener("input", updateResumeWordCount);
-}
-
 function updateWordCount() {
   const text = document.getElementById("studyNotesInput").value.trim();
   const words = text ? text.split(/\s+/).length : 0;
@@ -203,7 +147,7 @@ function initResumeFileUpload() {
           resumeInput.value = extractedText.trim();
           filePagesEl.textContent = `(${pdf.numPages} ${pdf.numPages === 1 ? 'page' : 'pages'})`;
           updateResumeWordCount();
-          showToast(`Parsed ${pdf.numPages} pages from ${file.name}!`);
+          showToast(`Parsed ${pdf.numPages} pages from ${file.name}`);
         } catch (err) {
           alert("Failed to parse PDF file. Make sure it contains readable text.");
           filePagesEl.textContent = "(Error parsing)";
@@ -216,7 +160,7 @@ function initResumeFileUpload() {
           resumeInput.value = clean.trim();
           filePagesEl.textContent = "(Parsed Text)";
           updateResumeWordCount();
-          showToast(`Loaded ${file.name}!`);
+          showToast(`Loaded ${file.name}`);
         };
         reader.readAsText(file);
       }
@@ -227,49 +171,27 @@ function initResumeFileUpload() {
         resumeInput.value = event.target.result;
         filePagesEl.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
         updateResumeWordCount();
-        showToast(`Loaded ${file.name}!`);
+        showToast(`Loaded ${file.name}`);
       };
       reader.readAsText(file);
     }
   }
 
-  // Role presets chips
-  document.querySelectorAll(".role-chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      const role = chip.getAttribute("data-role");
-      const jd = chip.getAttribute("data-jd");
-      document.getElementById("careerTargetRole").value = role;
-      document.getElementById("careerJdInput").value = jd;
-      showToast(`Role preset loaded: ${chip.textContent}`);
-    });
-  });
-
   // Copy ATS keywords button
   document.getElementById("btnCopyAtsKeywords")?.addEventListener("click", () => {
     if (currentAtsKeywords.length === 0) return;
     navigator.clipboard.writeText(currentAtsKeywords.join(", "));
-    showToast("Copied all ATS keywords to clipboard!");
+    showToast("Copied all ATS keywords to clipboard");
   });
 }
 
 // -------------------------------------------------------------
-// 4. Academic Study Hub
+// 4. Study Hub
 // -------------------------------------------------------------
 function initStudyHub() {
   const askForm = document.getElementById("studyAskForm");
   const questionInput = document.getElementById("studyQuestionInput");
   const chatDisplay = document.getElementById("studyChatDisplay");
-
-  // Chips click handler
-  document.querySelectorAll(".chip:not(.role-chip)").forEach(chip => {
-    chip.addEventListener("click", () => {
-      const q = chip.getAttribute("data-question");
-      if (q) {
-        questionInput.value = q;
-        askForm.requestSubmit();
-      }
-    });
-  });
 
   askForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -283,7 +205,7 @@ function initStudyHub() {
     questionInput.value = "";
 
     // Append loading AI bubble
-    const aiBubble = appendChatBubble(chatDisplay, "ai", "Analyzing notes and synthesizing answer...");
+    const aiBubble = appendChatBubble(chatDisplay, "ai", "Analyzing and synthesizing answer...");
 
     try {
       const response = await fetch("/api/study/ask", {
@@ -295,7 +217,7 @@ function initStudyHub() {
       const data = await response.json();
       typewriterEffect(aiBubble.querySelector(".bubble-text"), data.answer || "No response received.");
     } catch (err) {
-      aiBubble.querySelector(".bubble-text").textContent = "Network error connecting to Java backend. Ensure server is running on port 8080.";
+      aiBubble.querySelector(".bubble-text").textContent = "Network error connecting to backend. Ensure server is running on port 8080.";
     }
   });
 
@@ -307,8 +229,8 @@ function initStudyHub() {
     quizContainer.innerHTML = `
       <div class="empty-state">
         <div class="pulsing-dot" style="margin: 0 auto 12px; width: 14px; height: 14px;"></div>
-        <h4 class="font-display">Generating Exam Flashcards...</h4>
-        <p class="text-muted text-sm">Synthesizing multiple-choice questions from your course text.</p>
+        <h4 class="font-display">Generating Quiz...</h4>
+        <p class="text-muted text-sm">Synthesizing multiple-choice questions from your notes.</p>
       </div>
     `;
 
@@ -334,7 +256,7 @@ function appendChatBubble(container, type, text) {
   const header = document.createElement("div");
   header.className = "bubble-header font-mono";
   header.innerHTML = `
-    <span>${type === "user" ? "STUDENT" : "CAMPUS-AI"}</span>
+    <span>${type === "user" ? "YOU" : "AI ASSISTANT"}</span>
     <span>${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
   `;
 
@@ -406,10 +328,10 @@ function renderQuiz(questions) {
           b.disabled = true;
           if (idx === q.correctAnswerIndex) {
             b.classList.add("correct");
-            b.querySelector(".opt-status").textContent = "✓ CORRECT";
+            b.querySelector(".opt-status").textContent = "CORRECT";
           } else if (idx === selected) {
             b.classList.add("wrong");
-            b.querySelector(".opt-status").textContent = "✗ INCORRECT";
+            b.querySelector(".opt-status").textContent = "INCORRECT";
           }
         });
       });
@@ -420,7 +342,7 @@ function renderQuiz(questions) {
 }
 
 // -------------------------------------------------------------
-// 5. Career & Placement Lab (ATS Suite + Study Plan)
+// 5. Career & Placement (ATS Suite + Study Plan)
 // -------------------------------------------------------------
 function initCareerLab() {
   const btnAnalyze = document.getElementById("btnAnalyzeResume");
@@ -432,12 +354,12 @@ function initCareerLab() {
     const jobDescription = document.getElementById("careerJdInput").value.trim();
 
     if (!resume) {
-      alert("Please upload your resume (PDF/TXT) or click 'Load Sample Student Resume' first!");
+      alert("Please upload your resume (PDF or TXT) or paste the text first.");
       return;
     }
 
     btnAnalyze.disabled = true;
-    btnAnalyze.querySelector("span").textContent = "Analyzing ATS Match & Generating Study Plan...";
+    btnAnalyze.querySelector("span").textContent = "Analyzing...";
 
     try {
       const response = await fetch("/api/career/analyze", {
@@ -451,10 +373,10 @@ function initCareerLab() {
       resultsContainer.style.display = "block";
       resultsContainer.scrollIntoView({ behavior: "smooth" });
     } catch (err) {
-      alert("Error analyzing resume. Please ensure Java server is running on port 8080.");
+      alert("Error analyzing resume. Please ensure the server is running on port 8080.");
     } finally {
       btnAnalyze.disabled = false;
-      btnAnalyze.querySelector("span").textContent = "Run ATS & Placement Intelligence";
+      btnAnalyze.querySelector("span").textContent = "Run ATS Analysis";
     }
   });
 
@@ -487,7 +409,7 @@ function initCareerLab() {
       activeInterviewQuestion = data.question;
       currentQText.textContent = activeInterviewQuestion;
     } catch (err) {
-      currentQText.textContent = "Tell me about a challenging Java backend project you developed and how you handled database transactions.";
+      currentQText.textContent = "Describe a challenging project you worked on and how you handled the technical decisions.";
       activeInterviewQuestion = currentQText.textContent;
     } finally {
       btnStartInterview.disabled = false;
@@ -558,7 +480,7 @@ function renderCareerResults(data) {
 
   // Matched Skills
   const matchedList = document.getElementById("matchedSkillsList");
-  matchedList.innerHTML = (data.matchedSkills || ["Core Java", "Spring Boot", "REST APIs", "SQL"]).map(s => `
+  matchedList.innerHTML = (data.matchedSkills || []).map(s => `
     <span class="skill-tag skill-tag-emerald">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
       ${s}
@@ -567,7 +489,7 @@ function renderCareerResults(data) {
 
   // Missing Skills
   const missingList = document.getElementById("missingSkillsList");
-  missingList.innerHTML = (data.missingSkills || ["Apache Kafka", "Redis Caching", "Docker"]).map(s => `
+  missingList.innerHTML = (data.missingSkills || []).map(s => `
     <span class="skill-tag skill-tag-amber">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       ${s}
@@ -575,7 +497,7 @@ function renderCareerResults(data) {
   `).join("");
 
   // ATS Missing Keywords
-  currentAtsKeywords = data.atsKeywords || ["Apache Kafka", "Redis Cache", "Virtual Threads", "System Design"];
+  currentAtsKeywords = data.atsKeywords || [];
   const atsKeywordsList = document.getElementById("atsKeywordsList");
   atsKeywordsList.innerHTML = currentAtsKeywords.map(kw => `
     <span class="skill-tag" style="background: rgba(0, 82, 255, 0.08); border: 1px solid var(--accent-border); color: var(--accent);">
@@ -585,35 +507,25 @@ function renderCareerResults(data) {
 
   // Bullet Point Rewrites
   const bulletBox = document.getElementById("bulletRewritesContainer");
-  const rewrites = data.bulletRewrites || [
-    {
-      original: "Built checkout and order processing services with JWT authentication.",
-      improved: "Architected distributed checkout and payment services in Java 21/Spring Boot with JWT auth, processing 5,000+ orders with 99.9% uptime.",
-      rationale: "Quantified results and replaced passive phrasing with strong action verb 'Architected'."
-    }
-  ];
+  const rewrites = data.bulletRewrites || [];
   bulletBox.innerHTML = rewrites.map(b => `
     <div class="bullet-card">
       <div class="bullet-orig">
-        <span class="font-mono text-xs font-semibold" style="display: block; margin-bottom: 2px;">BEFORE (GENERIC):</span>
+        <span class="font-mono text-xs font-semibold" style="display: block; margin-bottom: 2px;">BEFORE:</span>
         "${b.original}"
       </div>
       <div class="bullet-improved">
-        <span class="font-mono text-xs font-semibold" style="display: block; margin-bottom: 2px;">AFTER (ATS OPTIMIZED & QUANTIFIED):</span>
+        <span class="font-mono text-xs font-semibold" style="display: block; margin-bottom: 2px;">AFTER (OPTIMIZED):</span>
         "${b.improved}"
       </div>
-      <div class="bullet-rationale">💡 <strong>Why this works:</strong> ${b.rationale}</div>
+      <div class="bullet-rationale"><strong>Why this works:</strong> ${b.rationale}</div>
     </div>
   `).join("");
 
   // Pre-Interview Study Guide
   const studyGuide = data.studyGuide || {};
   const coreTopicsList = document.getElementById("studyCoreTopicsList");
-  coreTopicsList.innerHTML = (studyGuide.coreTopics || [
-    "Java 21 Concurrency: Virtual Threads vs OS Threads, ThreadPoolExecutor",
-    "JVM Garbage Collection: G1GC vs ZGC tuning and memory leak analysis",
-    "Database Optimization: Composite B-Tree Indexes and Hibernate N+1 issue"
-  ]).map(t => `
+  coreTopicsList.innerHTML = (studyGuide.coreTopics || []).map(t => `
     <li class="study-item">
       <span class="study-bullet-dot"></span>
       <span>${t}</span>
@@ -621,11 +533,7 @@ function renderCareerResults(data) {
   `).join("");
 
   const systemDesignList = document.getElementById("studySystemDesignList");
-  systemDesignList.innerHTML = (studyGuide.systemDesign || [
-    "High-Throughput Caching: Cache-Aside vs Write-Through with Redis",
-    "Asynchronous Event Streaming: Kafka partitions, consumer lag, and offsets",
-    "Microservice Resiliency: Resilience4j Circuit Breaker & Rate Limiting"
-  ]).map(t => `
+  systemDesignList.innerHTML = (studyGuide.systemDesign || []).map(t => `
     <li class="study-item">
       <span class="study-bullet-dot" style="background: var(--emerald);"></span>
       <span>${t}</span>
@@ -633,29 +541,16 @@ function renderCareerResults(data) {
   `).join("");
 
   const questionsList = document.getElementById("studyQuestionsList");
-  questionsList.innerHTML = (studyGuide.interviewQuestions || [
-    {
-      question: "How do Virtual Threads in Java 21 improve server throughput compared to traditional thread-per-request models?",
-      tip: "Explain how carrier threads unmount blocking I/O tasks, allowing millions of concurrent tasks."
-    },
-    {
-      question: "How would you handle a distributed transaction across microservices without 2PC?",
-      tip: "Describe the Saga Pattern (Orchestration vs Choreography) with compensating transactions."
-    }
-  ]).map((q, idx) => `
+  questionsList.innerHTML = (studyGuide.interviewQuestions || []).map((q, idx) => `
     <div class="interview-qa-card">
       <div class="qa-question">Q${idx + 1}: ${q.question}</div>
-      <div class="qa-tip font-mono">💡 <strong>Interviewer Evaluates:</strong> ${q.tip}</div>
+      <div class="qa-tip font-mono"><strong>Interviewer Evaluates:</strong> ${q.tip}</div>
     </div>
   `).join("");
 
   // Roadmap
   const roadmapBox = document.getElementById("careerRoadmapContent");
-  roadmapBox.innerHTML = (data.roadmap || [
-    "Inject the missing ATS keywords into your Project descriptions.",
-    "Containerize your Java Spring Boot applications using multi-stage Docker builds.",
-    "Rehearse the STAR format answers for the 5 targeted technical questions."
-  ]).map((step, idx) => `
+  roadmapBox.innerHTML = (data.roadmap || []).map((step, idx) => `
     <div class="roadmap-item">
       <div class="roadmap-step-num font-mono">${idx + 1}</div>
       <div>
@@ -666,7 +561,7 @@ function renderCareerResults(data) {
 }
 
 // -------------------------------------------------------------
-// 5. API Key Modal & Persistence
+// 6. API Key Modal & Persistence
 // -------------------------------------------------------------
 function initApiKeyModal() {
   const modal = document.getElementById("keyModal");
@@ -698,22 +593,22 @@ function initApiKeyModal() {
     localStorage.setItem("smartcampus_gemini_key", geminiApiKey);
     keyLabel.textContent = geminiApiKey ? "KEY ACTIVE" : "API KEY";
     modal.classList.remove("open");
-    showToast(geminiApiKey ? "Gemini API Key Saved!" : "Reverted to Offline Heuristic Mode.");
+    showToast(geminiApiKey ? "Gemini API Key Saved" : "Reverted to Offline Mode");
   });
 }
 
 // -------------------------------------------------------------
-// 6. Backend Health & Connectivity
+// 7. Backend Health & Connectivity
 // -------------------------------------------------------------
 async function checkBackendHealth() {
   try {
     const res = await fetch("/api/health");
     if (res.ok) {
       const data = await res.json();
-      document.getElementById("systemStatusText").textContent = `ONLINE · ${data.mode || "JAVA 21"}`;
+      document.getElementById("systemStatusText").textContent = `ONLINE`;
     }
   } catch (err) {
-    document.getElementById("systemStatusText").textContent = "STANDBY · RUN MAIN.JAVA";
+    document.getElementById("systemStatusText").textContent = "OFFLINE";
   }
 }
 
