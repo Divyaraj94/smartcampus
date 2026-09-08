@@ -193,6 +193,61 @@ function initStudyHub() {
   const questionInput = document.getElementById("studyQuestionInput");
   const chatDisplay = document.getElementById("studyChatDisplay");
 
+  // Save Notes & Connect to AI Button
+  document.getElementById("btnStudySyncMaterial")?.addEventListener("click", () => {
+    const notes = document.getElementById("studyNotesInput").value.trim();
+    if (!notes) {
+      showToast("Please paste your study material in the text area first.");
+      document.getElementById("studyNotesInput").focus();
+      return;
+    }
+
+    if (!geminiApiKey) {
+      showToast("Notes saved! (Using Offline Engine — connect API key anytime)");
+      const keyBox = document.getElementById("studyInlineKeyBox");
+      if (keyBox) keyBox.style.display = "block";
+    } else {
+      showToast("Notes saved & connected to Gemini AI!");
+    }
+  });
+
+  // Toggle Inline API Key Box
+  document.getElementById("btnStudyOpenKey")?.addEventListener("click", () => {
+    const keyBox = document.getElementById("studyInlineKeyBox");
+    if (!keyBox) return;
+    if (keyBox.style.display === "none" || !keyBox.style.display) {
+      keyBox.style.display = "block";
+      const inlineInput = document.getElementById("studyInlineKeyInput");
+      if (inlineInput) {
+        inlineInput.value = geminiApiKey;
+        inlineInput.focus();
+      }
+    } else {
+      keyBox.style.display = "none";
+    }
+  });
+
+  // Save Inline Key
+  document.getElementById("btnStudySaveInlineKey")?.addEventListener("click", () => {
+    const val = document.getElementById("studyInlineKeyInput")?.value.trim() || "";
+    updateApiKeyUI(val);
+    document.getElementById("studyInlineKeyBox").style.display = "none";
+    showToast(val ? "Gemini API Key Connected!" : "Reverted to Offline Engine");
+  });
+
+  // Clear Inline Key
+  document.getElementById("btnStudyClearInlineKey")?.addEventListener("click", () => {
+    updateApiKeyUI("");
+    document.getElementById("studyInlineKeyBox").style.display = "none";
+    showToast("API Key removed. Reverted to Offline Engine.");
+  });
+
+  // Close Inline Key
+  document.getElementById("btnStudyCloseInlineKey")?.addEventListener("click", () => {
+    document.getElementById("studyInlineKeyBox").style.display = "none";
+  });
+
+  // Ask AI Form Submit
   askForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const question = questionInput.value.trim();
@@ -205,7 +260,7 @@ function initStudyHub() {
     questionInput.value = "";
 
     // Append loading AI bubble
-    const aiBubble = appendChatBubble(chatDisplay, "ai", "Analyzing and synthesizing answer...");
+    const aiBubble = appendChatBubble(chatDisplay, "ai", "Analyzing material and synthesizing answer...");
 
     try {
       const response = await fetch("/api/study/ask", {
@@ -225,6 +280,17 @@ function initStudyHub() {
   document.getElementById("btnGenerateQuiz")?.addEventListener("click", async () => {
     const notes = document.getElementById("studyNotesInput").value.trim();
     const quizContainer = document.getElementById("quizContainer");
+
+    if (!notes) {
+      quizContainer.innerHTML = `
+        <div class="empty-state">
+          <p class="text-amber text-sm text-center">Please paste your study notes in the text area above first, then click Generate Quiz.</p>
+        </div>
+      `;
+      showToast("Please paste your study notes above first.");
+      document.getElementById("studyNotesInput").focus();
+      return;
+    }
 
     quizContainer.innerHTML = `
       <div class="empty-state">
@@ -561,39 +627,82 @@ function renderCareerResults(data) {
 }
 
 // -------------------------------------------------------------
-// 6. API Key Modal & Persistence
+// 6. API Key Synchronization & Persistence
 // -------------------------------------------------------------
+function updateApiKeyUI(key) {
+  geminiApiKey = (key || "").trim();
+  if (geminiApiKey) {
+    localStorage.setItem("smartcampus_gemini_key", geminiApiKey);
+  } else {
+    localStorage.removeItem("smartcampus_gemini_key");
+  }
+
+  // Send to backend
+  fetch("/api/config/key", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ apiKey: geminiApiKey })
+  }).catch(() => {});
+
+  // Update Top Navbar
+  const keyLabel = document.getElementById("keyLabel");
+  if (keyLabel) keyLabel.textContent = geminiApiKey ? "KEY ACTIVE" : "API KEY";
+
+  // Update Modal Input
+  const modalInput = document.getElementById("geminiApiKeyInput");
+  if (modalInput) modalInput.value = geminiApiKey;
+
+  // Update Study Card Key elements
+  const studyInlineInput = document.getElementById("studyInlineKeyInput");
+  if (studyInlineInput) studyInlineInput.value = geminiApiKey;
+
+  const studyKeyBtnText = document.getElementById("studyKeyBtnText");
+  if (studyKeyBtnText) {
+    studyKeyBtnText.textContent = geminiApiKey ? "Gemini Key: Active" : "Gemini API Key";
+  }
+
+  const statusLabel = document.getElementById("studyAiStatusLabel");
+  const statusDot = document.getElementById("studyAiStatusDot");
+  if (statusLabel && statusDot) {
+    if (geminiApiKey) {
+      statusLabel.textContent = "Live Gemini AI Active";
+      statusDot.style.backgroundColor = "var(--emerald)";
+      statusDot.style.boxShadow = "0 0 8px rgba(16, 185, 129, 0.7)";
+    } else {
+      statusLabel.textContent = "Offline Engine Ready";
+      statusDot.style.backgroundColor = "var(--muted-fg)";
+      statusDot.style.boxShadow = "none";
+    }
+  }
+}
+
 function initApiKeyModal() {
   const modal = document.getElementById("keyModal");
   const btnOpen = document.getElementById("btnOpenKeyModal");
   const btnClose = document.getElementById("btnCloseKeyModal");
   const btnSave = document.getElementById("btnSaveApiKey");
   const input = document.getElementById("geminiApiKeyInput");
-  const keyLabel = document.getElementById("keyLabel");
 
-  if (geminiApiKey) {
-    input.value = geminiApiKey;
-    keyLabel.textContent = "KEY ACTIVE";
-  }
+  updateApiKeyUI(geminiApiKey);
 
-  btnOpen.addEventListener("click", () => {
-    modal.classList.add("open");
+  btnOpen?.addEventListener("click", () => {
+    if (input) input.value = geminiApiKey;
+    modal?.classList.add("open");
   });
 
-  btnClose.addEventListener("click", () => {
-    modal.classList.remove("open");
+  btnClose?.addEventListener("click", () => {
+    modal?.classList.remove("open");
   });
 
-  modal.addEventListener("click", (e) => {
+  modal?.addEventListener("click", (e) => {
     if (e.target === modal) modal.classList.remove("open");
   });
 
-  btnSave.addEventListener("click", () => {
-    geminiApiKey = input.value.trim();
-    localStorage.setItem("smartcampus_gemini_key", geminiApiKey);
-    keyLabel.textContent = geminiApiKey ? "KEY ACTIVE" : "API KEY";
-    modal.classList.remove("open");
-    showToast(geminiApiKey ? "Gemini API Key Saved" : "Reverted to Offline Mode");
+  btnSave?.addEventListener("click", () => {
+    const key = input ? input.value.trim() : "";
+    updateApiKeyUI(key);
+    modal?.classList.remove("open");
+    showToast(key ? "Gemini API Key Saved & Connected" : "Reverted to Offline Mode");
   });
 }
 

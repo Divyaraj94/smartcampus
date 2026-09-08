@@ -104,7 +104,53 @@
             <textarea id="studyNotesInput" class="custom-textarea" rows="5" placeholder="Paste your study notes, module outlines, or any topic content here..."></textarea>
             <div class="textarea-footer">
               <span id="studyWordCount" class="font-mono text-muted">0 words · 0 characters</span>
-              <button id="btnClearNotes" class="btn btn-ghost btn-xs text-muted">Clear</button>
+              <button id="btnClearNotes" class="btn btn-ghost btn-xs text-muted" type="button">Clear</button>
+            </div>
+          </div>
+
+          <!-- Study Material Actions & API Key Connection Bar -->
+          <div class="study-actions-bar mt-4 pt-3" style="border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <button id="btnStudySyncMaterial" class="btn btn-primary btn-sm" type="button" title="Save notes and sync with AI">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                  <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                <span>Save Notes to AI</span>
+              </button>
+
+              <button id="btnStudyOpenKey" class="btn btn-secondary btn-sm" type="button" title="Configure your Gemini API key">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 2l-2 2m-1.5 1.5L16 7m-4-4l-8 8v4h4l8-8m2-2l2-2"></path>
+                </svg>
+                <span id="studyKeyBtnText">Gemini API Key</span>
+              </button>
+            </div>
+
+            <!-- Real-time AI Status Indicator on Card -->
+            <div class="study-ai-status" style="display: flex; align-items: center; gap: 8px;">
+              <span id="studyAiStatusPill" class="status-pill font-mono" style="padding: 5px 12px; font-size: 0.75rem;">
+                <span id="studyAiStatusDot" class="pulsing-dot" style="background-color: var(--muted-fg); box-shadow: none;"></span>
+                <span id="studyAiStatusLabel">Offline Engine Ready</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Inline Quick Key Entry Box -->
+          <div id="studyInlineKeyBox" class="study-inline-key-box mt-3" style="display: none; background: var(--muted); padding: 14px 18px; border-radius: var(--radius-md); border: 1px solid var(--border);">
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                <span class="font-mono text-xs" style="font-weight: 600;">ENTER GOOGLE GEMINI API KEY</span>
+                <a href="https://aistudio.google.com/apikey" target="_blank" class="text-xs" style="color: var(--accent); text-decoration: underline;">Get free key at aistudio.google.com</a>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <input type="password" id="studyInlineKeyInput" class="custom-input" placeholder="Paste AIzaSy... key here" style="flex: 1; min-width: 220px; font-size: 0.85rem; padding: 8px 12px;">
+                <button id="btnStudySaveInlineKey" class="btn btn-primary btn-sm" type="button">Save Key</button>
+                <button id="btnStudyClearInlineKey" class="btn btn-secondary btn-sm" type="button">Remove Key</button>
+                <button id="btnStudyCloseInlineKey" class="btn btn-ghost btn-sm" type="button">Close</button>
+              </div>
+              <span class="text-xs text-muted font-mono">* Key is saved securely in your browser and used for live Gemini AI answers and quizzes. If blank, the intelligent offline engine is used.</span>
             </div>
           </div>
         </div>

@@ -124,8 +124,9 @@ public class SmartCampusApp {
             String answer;
             if (!apiKey.isBlank()) {
                 try {
-                    String prompt = "You are an expert technical tutor and study assistant. Answer the question clearly and accurately based on the notes below. Use clear bullet points and highlight key technical terms.\n\n"
-                            + "NOTES:\n" + (notes.isBlank() ? "Key technical concepts and architecture" : notes) + "\n\n"
+                    String prompt = "You are an expert technical tutor and study assistant. Answer the question clearly, thoroughly, and accurately based on the study notes below.\n"
+                            + "Provide a direct answer followed by bullet points and highlight key technical terms.\n\n"
+                            + "STUDY NOTES:\n" + (notes.isBlank() ? "Key technical concepts and architecture" : notes) + "\n\n"
                             + "QUESTION:\n" + question;
                     answer = callGeminiApi(apiKey, prompt);
                 } catch (Exception e) {
@@ -160,14 +161,17 @@ public class SmartCampusApp {
             String responseJson;
             if (!apiKey.isBlank()) {
                 try {
-                    String prompt = "Create 3 multiple-choice questions (MCQs) for revision based on the following notes. "
-                            + "Respond strictly with valid JSON in this exact structure without markdown backticks:\n"
-                            + "{\"questions\":[{\"question\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"correctAnswerIndex\":0,\"explanation\":\"...\"}]}\n\n"
-                            + "NOTES:\n" + (notes.isBlank() ? "Key concepts and technical principles" : notes);
+                    String prompt = "Create 3 high-quality multiple-choice questions (MCQs) for revision based strictly on the following study notes.\n"
+                            + "Respond strictly with valid JSON without markdown code blocks, using this exact structure:\n"
+                            + "{\"questions\":[{\"question\":\"question text\",\"options\":[\"option A\",\"option B\",\"option C\",\"option D\"],\"correctAnswerIndex\":0,\"explanation\":\"why this answer is correct\"}]}\n\n"
+                            + "STUDY NOTES:\n" + (notes.isBlank() ? "Key concepts and technical principles" : notes);
                     String raw = callGeminiApi(apiKey, prompt);
-                    // Extract JSON from output
                     responseJson = cleanJsonOutput(raw);
+                    if (!responseJson.contains("\"questions\"") || !responseJson.contains("\"options\"")) {
+                        responseJson = generateHeuristicQuizJson(notes);
+                    }
                 } catch (Exception e) {
+                    System.err.println("Gemini quiz generation failed, using dynamic heuristic engine: " + e.getMessage());
                     responseJson = generateHeuristicQuizJson(notes);
                 }
             } else {
@@ -376,136 +380,245 @@ public class SmartCampusApp {
     // Offline Heuristic Engines (Dynamic Fallback)
     // =========================================================================
     private static String generateHeuristicStudyAnswer(String question, String notes) {
-        StringBuilder sb = new StringBuilder();
+        if (notes == null || notes.trim().isEmpty()) {
+            return "No study notes have been uploaded yet. Please paste your study material in the text area above, then ask your question again for a contextual answer.";
+        }
 
-        // Extract keywords from the question to search in notes
+        StringBuilder sb = new StringBuilder();
+        String[] rawSentences = notes.split("(?<=[.!?\\n])\\s+");
+        List<String> sentences = new ArrayList<>();
+        for (String s : rawSentences) {
+            String trimmed = s.replaceAll("^[-*•0-9.) ]+", "").trim();
+            if (trimmed.length() > 10) {
+                sentences.add(trimmed);
+            }
+        }
+        if (sentences.isEmpty()) {
+            sentences.add(notes.trim());
+        }
+
+        // Extract keywords from the question
         String[] questionWords = question.toLowerCase().replaceAll("[^a-z0-9 ]", "").split("\\s+");
+        Set<String> stopwords = Set.of(
+            "what", "which", "where", "when", "that", "this", "with", "from", "have", "does",
+            "explain", "describe", "about", "tell", "give", "some", "more", "into", "their",
+            "them", "they", "will", "would", "could", "should", "your", "user", "role", "help"
+        );
         List<String> keywords = new ArrayList<>();
         for (String w : questionWords) {
-            if (w.length() > 3 && !List.of("what", "which", "where", "when", "that", "this", "with", "from", "have", "does", "explain", "describe", "about").contains(w)) {
+            if (w.length() > 2 && !stopwords.contains(w)) {
                 keywords.add(w);
             }
         }
 
-        // Search provided notes for relevant sentences
-        if (notes != null && !notes.isBlank()) {
-            String[] sentences = notes.split("\\. |\\n");
-            List<String> relevant = new ArrayList<>();
-            for (String s : sentences) {
-                String lower = s.trim().toLowerCase();
-                if (lower.length() > 15) {
-                    for (String kw : keywords) {
-                        if (lower.contains(kw)) {
-                            relevant.add(s.trim());
-                            break;
-                        }
-                    }
-                }
+        // Score sentences based on matching keywords
+        Map<String, Integer> scored = new LinkedHashMap<>();
+        for (String s : sentences) {
+            String lower = s.toLowerCase();
+            int score = 0;
+            for (String kw : keywords) {
+                if (lower.contains(kw)) score += 2;
+                if (lower.startsWith(kw) || lower.contains(" " + kw + " ")) score += 3;
             }
+            if (score > 0) {
+                scored.put(s, score);
+            }
+        }
 
-            if (!relevant.isEmpty()) {
-                sb.append("Based on your uploaded notes:\n\n");
-                int count = 0;
-                for (String r : relevant) {
-                    sb.append("- ").append(r);
-                    if (!r.endsWith(".")) sb.append(".");
-                    sb.append("\n");
-                    count++;
-                    if (count >= 5) break;
-                }
-            } else {
-                // No keyword match, return first meaningful sentences
-                sb.append("From your notes:\n\n");
-                int count = 0;
-                for (String s : sentences) {
-                    if (s.trim().length() > 20) {
-                        sb.append("- ").append(s.trim());
-                        if (!s.trim().endsWith(".")) sb.append(".");
-                        sb.append("\n");
-                        count++;
-                        if (count >= 4) break;
-                    }
-                }
-                if (count == 0) {
-                    sb.append("Your notes are quite brief. Try pasting more detailed content for better answers.");
-                }
+        List<Map.Entry<String, Integer>> sortedMatches = new ArrayList<>(scored.entrySet());
+        sortedMatches.sort((a, b) -> b.getValue().compareTo(a.getValue()));
+
+        if (!sortedMatches.isEmpty()) {
+            sb.append("Direct Answer:\n");
+            sb.append(sortedMatches.get(0).getKey());
+            if (!sortedMatches.get(0).getKey().endsWith(".")) sb.append(".");
+            sb.append("\n\nDetailed Breakdown from Your Notes:\n");
+            int limit = Math.min(4, sortedMatches.size());
+            for (int i = 0; i < limit; i++) {
+                String sent = sortedMatches.get(i).getKey();
+                sb.append("• ").append(sent);
+                if (!sent.endsWith(".")) sb.append(".");
+                sb.append("\n");
             }
-            sb.append("\nTip: Upload more detailed notes for deeper analysis.");
+            sb.append("\nKey Takeaways:\n");
+            sb.append("• Directly grounded in your uploaded study material.\n");
+            sb.append("• Ask further questions about any specific term to explore more deeply.");
         } else {
-            sb.append("No notes have been uploaded yet. Please paste your study material in the text area above, then ask your question again for a contextual answer.");
+            // Broad question or no direct keyword match: give comprehensive material synthesis
+            sb.append("Synthesis from Your Study Material:\n\n");
+            int limit = Math.min(4, sentences.size());
+            for (int i = 0; i < limit; i++) {
+                String sent = sentences.get(i);
+                sb.append("• ").append(sent);
+                if (!sent.endsWith(".")) sb.append(".");
+                sb.append("\n");
+            }
+            sb.append("\nKey Concepts:\n");
+            sb.append("• Above are the core concepts extracted from your material addressing your topic.\n");
+            sb.append("• You can ask targeted questions about any individual concept for deeper analysis.");
         }
 
         return sb.toString();
     }
 
     private static String generateHeuristicQuizJson(String notes) {
-        // Dynamically extract concepts and definitions from whatever notes the user uploaded
+        if (notes == null || notes.trim().isEmpty()) {
+            return "{\"questions\": [{\"question\": \"Please paste your study notes in the Study Materials box to generate a quiz.\", \"options\": [\"Paste notes in Study Materials box\", \"Connect your Gemini API Key\", \"Ask questions in Ask AI\", \"All of the above\"], \"correctAnswerIndex\": 0, \"explanation\": \"The quiz generator extracts questions and definitions directly from the notes you paste in the Study Materials area.\"}]}";
+        }
+
+        // Extract concepts and definition pairs from notes
         List<String[]> extractedPairs = new ArrayList<>();
-        if (notes != null && !notes.isBlank()) {
-            String[] lines = notes.split("\\r?\\n");
-            for (String line : lines) {
-                String trimmed = line.trim();
-                if (trimmed.contains(":") && trimmed.length() > 20) {
-                    String[] parts = trimmed.split(":", 2);
-                    String term = parts[0].replaceAll("^[^a-zA-Z0-9 ]+", "").trim();
-                    String def = parts[1].trim();
-                    if (!term.isBlank() && term.length() < 50 && def.length() > 15) {
-                        extractedPairs.add(new String[]{term, def});
-                    }
-                } else if (trimmed.matches(".*\\b(is defined as|is|refers to|means)\\b.*") && trimmed.length() > 30) {
-                    String[] parts = trimmed.split("\\b(is defined as|is|refers to|means)\\b", 2);
-                    String term = parts[0].replaceAll("^[^a-zA-Z0-9 ]+", "").trim();
-                    String def = parts[1].trim();
-                    if (!term.isBlank() && term.length() < 50 && def.length() > 15) {
-                        extractedPairs.add(new String[]{term, def});
+        String[] lines = notes.split("\\r?\\n");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.length() < 12) continue;
+
+            if (trimmed.contains(":") && trimmed.indexOf(":") < 40) {
+                String[] parts = trimmed.split(":", 2);
+                String term = parts[0].replaceAll("^[^a-zA-Z0-9 ]+", "").trim();
+                String def = parts[1].trim();
+                if (!term.isBlank() && def.length() > 8) {
+                    extractedPairs.add(new String[]{term, def});
+                }
+            } else if (trimmed.contains(" - ") && trimmed.indexOf(" - ") < 40) {
+                String[] parts = trimmed.split(" - ", 2);
+                String term = parts[0].replaceAll("^[^a-zA-Z0-9 ]+", "").trim();
+                String def = parts[1].trim();
+                if (!term.isBlank() && def.length() > 8) {
+                    extractedPairs.add(new String[]{term, def});
+                }
+            } else if (trimmed.matches("(?i).*\\b(is defined as|is a|is an|is the|is|refers to|means|provides|enables|manages|handles|packages)\\b.*")) {
+                String[] parts = trimmed.split("(?i)\\b(is defined as|is a|is an|is the|is|refers to|means|provides|enables|manages|handles|packages)\\b", 2);
+                String term = parts[0].replaceAll("^[^a-zA-Z0-9 ]+", "").trim();
+                String def = parts[1].trim();
+                if (!term.isBlank() && term.length() < 40 && def.length() > 8) {
+                    extractedPairs.add(new String[]{term, def});
+                }
+            }
+        }
+
+        // If not enough pairs extracted from structured patterns, break sentences into terms and facts
+        if (extractedPairs.size() < 3) {
+            String[] sentences = notes.split("(?<=[.!?\\n])\\s+");
+            for (String s : sentences) {
+                String trimmed = s.replaceAll("^[-*•0-9.) ]+", "").trim();
+                if (trimmed.length() > 20) {
+                    String[] words = trimmed.split("\\s+");
+                    if (words.length >= 4) {
+                        int termWordCount = Math.min(3, Math.max(1, words.length / 3));
+                        String term = String.join(" ", Arrays.copyOfRange(words, 0, termWordCount)).replaceAll("[,;:]", "");
+                        String def = String.join(" ", Arrays.copyOfRange(words, termWordCount, words.length));
+                        if (!term.isBlank() && def.length() > 10) {
+                            extractedPairs.add(new String[]{term, def});
+                        }
                     }
                 }
             }
         }
 
-        // If user provided notes with extractable definitions, dynamically construct MCQs from their text!
-        if (extractedPairs.size() >= 2) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("{\"questions\": [");
-            int count = Math.min(3, extractedPairs.size());
-            for (int i = 0; i < count; i++) {
-                String[] current = extractedPairs.get(i);
-                String term = current[0];
-                String def = current[1];
-
-                // Gather distractor terms from other extracted concepts
-                List<String> options = new ArrayList<>();
-                options.add(term);
-                for (int j = 0; j < extractedPairs.size(); j++) {
-                    if (j != i && options.size() < 4) {
-                        options.add(extractedPairs.get(j)[0]);
-                    }
-                }
-                while (options.size() < 4) {
-                    options.add("System Architecture Concept " + options.size());
-                }
-                Collections.shuffle(options);
-                int correctIndex = options.indexOf(term);
-
-                if (i > 0) sb.append(",");
-                String shortDef = def.length() > 120 ? def.substring(0, 120) + "..." : def;
-                sb.append("{")
-                  .append("\"question\": \"According to your uploaded notes, which concept is defined as: \\\"")
-                  .append(escapeJson(shortDef))
-                  .append("\\\"?\",")
-                  .append("\"options\": [\"")
-                  .append(String.join("\", \"", options.stream().map(SmartCampusApp::escapeJson).toList()))
-                  .append("\"],")
-                  .append("\"correctAnswerIndex\": ").append(correctIndex).append(",")
-                  .append("\"explanation\": \"Directly derived from your notes: ").append(escapeJson(term)).append(" refers to ").append(escapeJson(shortDef)).append("\"")
-                  .append("}");
+        // Clean and normalize terms
+        for (int i = 0; i < extractedPairs.size(); i++) {
+            String[] pair = extractedPairs.get(i);
+            String term = pair[0].replaceAll("(?i)^(a|an|the)\\s+", "").replaceAll("(?i)\\s+(is|are|was|were|a|an|the)$", "").trim();
+            if (term.length() > 1) {
+                term = term.substring(0, 1).toUpperCase() + term.substring(1);
             }
-            sb.append("]}");
-            return sb.toString();
+            pair[0] = term.isBlank() ? "Core Concept" : term;
         }
 
-        // Fallback: not enough extractable content — tell the user to add detailed notes
-        return "{\"questions\": [{\"question\": \"Please paste more detailed notes to generate a quiz. Include definitions, key concepts, or structured content.\", \"options\": [\"Understood\", \"Will do\", \"Got it\", \"OK\"], \"correctAnswerIndex\": 0, \"explanation\": \"The quiz engine works best when your notes contain clear definitions, terms, or structured content like 'Term: Definition' patterns.\"}]}";
+        // Ensure we have at least 3 items to build 3 distinct questions
+        if (extractedPairs.isEmpty()) {
+            extractedPairs.add(new String[]{"Core System Concept", "The fundamental component described in the uploaded notes"});
+            extractedPairs.add(new String[]{"Architecture Design", "The overall structure and interaction between system elements"});
+            extractedPairs.add(new String[]{"Implementation Details", "The specific technical execution described in the material"});
+        }
+        while (extractedPairs.size() < 3) {
+            extractedPairs.add(new String[]{"Concept " + (extractedPairs.size() + 1), "Key operational property detailed in your study notes"});
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\"questions\": [");
+
+        // Question 1: Identification
+        String[] pair1 = extractedPairs.get(0);
+        String term1 = pair1[0];
+        String def1 = pair1[1].length() > 120 ? pair1[1].substring(0, 120) + "..." : pair1[1];
+        List<String> opts1 = new ArrayList<>();
+        opts1.add(term1);
+        for (int j = 1; j < extractedPairs.size() && opts1.size() < 4; j++) {
+            opts1.add(extractedPairs.get(j)[0]);
+        }
+        List<String> genericTerms = List.of("Virtual Container Model", "Distributed Pipeline Layer", "Microservice Gateway", "Relational Index Buffer");
+        for (String g : genericTerms) {
+            if (opts1.size() < 4 && !opts1.contains(g)) opts1.add(g);
+        }
+        Collections.shuffle(opts1);
+        int correctIndex1 = opts1.indexOf(term1);
+
+        sb.append("{")
+          .append("\"question\": \"According to your uploaded notes, which concept is associated with: \\\"")
+          .append(escapeJson(def1))
+          .append("\\\"?\",")
+          .append("\"options\": [\"").append(String.join("\", \"", opts1.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
+          .append("\"correctAnswerIndex\": ").append(correctIndex1).append(",")
+          .append("\"explanation\": \"Directly derived from your notes: ").append(escapeJson(term1)).append(" relates to ").append(escapeJson(def1)).append("\"")
+          .append("},");
+
+        // Question 2: Purpose & Function
+        String[] pair2 = extractedPairs.get(Math.min(1, extractedPairs.size() - 1));
+        String term2 = pair2[0];
+        String def2 = pair2[1].length() > 100 ? pair2[1].substring(0, 100) + "..." : pair2[1];
+        List<String> opts2 = new ArrayList<>();
+        opts2.add(def2);
+        for (int j = 0; j < extractedPairs.size() && opts2.size() < 4; j++) {
+            if (j != 1) {
+                String d = extractedPairs.get(j)[1];
+                opts2.add(d.length() > 100 ? d.substring(0, 100) + "..." : d);
+            }
+        }
+        List<String> genericDefs = List.of(
+            "Acts as a read-only metadata registry without runtime execution",
+            "Manages hardware-level interrupt requests and memory partitions",
+            "Executes network packet filtering for external firewall connections"
+        );
+        for (String gd : genericDefs) {
+            if (opts2.size() < 4 && !opts2.contains(gd)) opts2.add(gd);
+        }
+        Collections.shuffle(opts2);
+        int correctIndex2 = opts2.indexOf(def2);
+
+        sb.append("{")
+          .append("\"question\": \"Based on the provided study material, what is the primary role or feature of \\\"")
+          .append(escapeJson(term2))
+          .append("\\\"?\",")
+          .append("\"options\": [\"").append(String.join("\", \"", opts2.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
+          .append("\"correctAnswerIndex\": ").append(correctIndex2).append(",")
+          .append("\"explanation\": \"Based on your notes: ").append(escapeJson(term2)).append(" is described as: ").append(escapeJson(def2)).append("\"")
+          .append("},");
+
+        // Question 3: Accurate Statement / Fact Check
+        String[] pair3 = extractedPairs.get(Math.min(2, extractedPairs.size() - 1));
+        String term3 = pair3[0];
+        String fact3 = pair3[1].length() > 90 ? pair3[1].substring(0, 90) : pair3[1];
+        List<String> opts3 = new ArrayList<>();
+        opts3.add(term3 + " " + fact3);
+        opts3.add(term3 + " is strictly an offline protocol with no external interactions");
+        opts3.add(term3 + " has been completely deprecated and replaced in modern systems");
+        opts3.add(term3 + " operates solely as an unmonitored background logging daemon");
+        Collections.shuffle(opts3);
+        int correctIndex3 = opts3.indexOf(term3 + " " + fact3);
+
+        sb.append("{")
+          .append("\"question\": \"Based on your study notes, which of the following statements is ACCURATE regarding \\\"")
+          .append(escapeJson(term3))
+          .append("\\\"?\",")
+          .append("\"options\": [\"").append(String.join("\", \"", opts3.stream().map(SmartCampusApp::escapeJson).toList())).append("\"],")
+          .append("\"correctAnswerIndex\": ").append(correctIndex3).append(",")
+          .append("\"explanation\": \"Accurately cited from your study material: ").append(escapeJson(term3)).append(" ").append(escapeJson(fact3)).append("\"")
+          .append("}");
+
+        sb.append("]}");
+        return sb.toString();
     }
 
     private static String generateHeuristicCareerJson(String resume, String targetRole, String jobDescription) {
