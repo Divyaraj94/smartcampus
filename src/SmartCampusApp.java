@@ -354,6 +354,27 @@ public class SmartCampusApp {
     // =========================================================================
     // Dynamic Model Discovery & Verification
     // =========================================================================
+    private static boolean isTextGenerationModel(String modelName) {
+        String lower = modelName.toLowerCase();
+        if (!lower.startsWith("gemini") && !lower.startsWith("gemma")) {
+            return false;
+        }
+        // Filter out non-text modalities
+        if (lower.contains("tts") ||
+            lower.contains("audio") ||
+            lower.contains("image") ||
+            lower.contains("vision") ||
+            lower.contains("embed") ||
+            lower.contains("transcribe") ||
+            lower.contains("robotics") ||
+            lower.contains("clip") ||
+            lower.contains("customtools") ||
+            lower.contains("computer-use")) {
+            return false;
+        }
+        return true;
+    }
+
     private static List<String> getOrFetchAvailableModels(String apiKey) throws Exception {
         String cleanKey = apiKey.trim();
         if (MODEL_CACHE.containsKey(cleanKey) && !MODEL_CACHE.get(cleanKey).isEmpty()) {
@@ -382,7 +403,7 @@ public class SmartCampusApp {
                     Matcher m = p.matcher(listRes.body());
                     while (m.find()) {
                         String mName = m.group(1);
-                        if (!discovered.contains(mName)) {
+                        if (isTextGenerationModel(mName) && !discovered.contains(mName)) {
                             discovered.add(mName);
                         }
                     }
@@ -407,10 +428,10 @@ public class SmartCampusApp {
                 throw new RuntimeException(lastError);
             }
             // Fallback list if ListModels is blocked but key is active
-            discovered = Arrays.asList("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash");
+            discovered = Arrays.asList("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.5-pro", "gemini-pro-latest");
         }
 
-        System.out.println("[Gemini] Active models for key: " + discovered);
+        System.out.println("[Gemini] Active text models for key: " + discovered);
         MODEL_CACHE.put(cleanKey, discovered);
         return discovered;
     }
@@ -426,31 +447,40 @@ public class SmartCampusApp {
         if (preferredModel != null && !preferredModel.isBlank()) {
             String p = preferredModel.trim();
             for (String av : available) {
-                if (av.equalsIgnoreCase(p) || av.contains(p)) {
-                    if (!candidateModels.contains(av)) candidateModels.add(av);
+                if (av.equalsIgnoreCase(p)) {
+                    candidateModels.add(av);
+                    break;
                 }
             }
         }
 
-        // Add modern flash models from available list
+        // Add top production flash models first
+        for (String prio : new String[]{"gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-2.0-flash", "gemini-1.5-flash"}) {
+            if (available.contains(prio) && !candidateModels.contains(prio)) {
+                candidateModels.add(prio);
+            }
+        }
+
+        // Add other flash models
         for (String av : available) {
             if (av.toLowerCase().contains("flash") && !candidateModels.contains(av)) {
                 candidateModels.add(av);
             }
         }
-        // Add pro models from available list
+        // Add pro models
         for (String av : available) {
             if (av.toLowerCase().contains("pro") && !candidateModels.contains(av)) {
                 candidateModels.add(av);
             }
         }
-        // Add any remaining models
+        // Add any remaining text models
         for (String av : available) {
             if (!candidateModels.contains(av)) {
                 candidateModels.add(av);
             }
         }
 
+        System.out.println("[Gemini] Execution order: " + candidateModels);
         Exception lastException = null;
 
         String payload = "{"
@@ -460,7 +490,6 @@ public class SmartCampusApp {
                 + "}";
 
         for (String model : candidateModels) {
-            // Try v1beta then v1
             for (String apiVer : new String[]{"v1beta", "v1"}) {
                 try {
                     String endpoint = "https://generativelanguage.googleapis.com/" + apiVer + "/models/" + model + ":generateContent?key=" + apiKey.trim();
@@ -473,6 +502,8 @@ public class SmartCampusApp {
                             .build();
 
                     HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
+                    System.out.println("[Gemini try] " + apiVer + " / " + model + " -> HTTP " + response.statusCode());
+
                     if (response.statusCode() == 200) {
                         String responseBody = response.body();
                         Pattern textPattern = Pattern.compile("\"text\":\\s*\"(.*?)(?<!\\\\)\"", Pattern.DOTALL);
@@ -481,26 +512,23 @@ public class SmartCampusApp {
                             return unescapeJson(matcher.group(1));
                         }
                         return "Response received from Gemini.";
-                    } else if (response.statusCode() == 404 || response.body().contains("NOT_FOUND")) {
-                        lastException = new RuntimeException("Model " + model + " unavailable on " + apiVer);
-                        continue;
                     } else {
                         String errMsg = extractJsonField(response.body(), "message");
                         if (errMsg.isBlank()) errMsg = response.body();
-                        throw new RuntimeException("Gemini HTTP " + response.statusCode() + ": " + errMsg);
+                        System.out.println("[Gemini candidate fail] " + model + " (" + apiVer + "): " + errMsg);
+                        lastException = new RuntimeException(model + ": " + errMsg);
+                        continue; // try next apiVer / next model
                     }
                 } catch (Exception ex) {
                     lastException = ex;
-                    if (ex.getMessage() != null && (ex.getMessage().contains("404") || ex.getMessage().contains("NOT_FOUND") || ex.getMessage().contains("unavailable"))) {
-                        continue;
-                    }
-                    throw ex;
+                    System.out.println("[Gemini exception] " + model + ": " + ex.getMessage());
+                    continue; // try next candidate model
                 }
             }
         }
 
         if (lastException != null) throw lastException;
-        throw new RuntimeException("All available Gemini models failed for this API key.");
+        throw new RuntimeException("All available Gemini text models failed for this API key.");
     }
     // =========================================================================
     // Helper Utilities
