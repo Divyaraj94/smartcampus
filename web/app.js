@@ -1,5 +1,6 @@
 // State
 let geminiApiKey = localStorage.getItem("smartcampus_gemini_key") || "";
+let geminiModel = localStorage.getItem("smartcampus_gemini_model") || "gemini-2.5-flash";
 if (geminiApiKey.includes("TestMockKey") || geminiApiKey === "AIzaSyTestMockKeyForVerification123") {
   localStorage.removeItem("smartcampus_gemini_key");
   geminiApiKey = "";
@@ -237,14 +238,15 @@ function initStudyHub() {
   // Save Inline Key
   document.getElementById("btnStudySaveInlineKey")?.addEventListener("click", () => {
     const val = document.getElementById("studyInlineKeyInput")?.value.trim() || "";
-    updateApiKeyUI(val);
+    const selModel = document.getElementById("studyInlineModelSelect")?.value || "gemini-2.5-flash";
+    updateApiKeyUI(val, selModel);
     document.getElementById("studyInlineKeyBox").style.display = "none";
-    showToast(val ? "Gemini API Key Connected!" : "API Key cleared.");
+    showToast(val ? `Connected to ${selModel.toUpperCase()}` : "API Key cleared.");
   });
 
   // Clear Inline Key
   document.getElementById("btnStudyClearInlineKey")?.addEventListener("click", () => {
-    updateApiKeyUI("");
+    updateApiKeyUI("", geminiModel);
     document.getElementById("studyInlineKeyBox").style.display = "none";
     showToast("API Key removed.");
   });
@@ -277,13 +279,13 @@ function initStudyHub() {
     questionInput.value = "";
 
     // Append loading AI bubble
-    const aiBubble = appendChatBubble(chatDisplay, "ai", "Analyzing material and synthesizing answer with Gemini AI...");
+    const aiBubble = appendChatBubble(chatDisplay, "ai", `Analyzing material with ${geminiModel.toUpperCase()}...`);
 
     try {
       const response = await fetch("/api/study/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, notes, apiKey: geminiApiKey })
+        body: JSON.stringify({ question, notes, apiKey: geminiApiKey, model: geminiModel })
       });
 
       const data = await response.json();
@@ -326,7 +328,7 @@ function initStudyHub() {
     quizContainer.innerHTML = `
       <div class="empty-state">
         <div class="pulsing-dot" style="margin: 0 auto 12px; width: 14px; height: 14px;"></div>
-        <h4 class="font-display">Generating Quiz with Gemini AI...</h4>
+        <h4 class="font-display">Generating Quiz with ${geminiModel.toUpperCase()}...</h4>
         <p class="text-muted text-sm">Synthesizing multiple-choice questions from your notes.</p>
       </div>
     `;
@@ -335,7 +337,7 @@ function initStudyHub() {
       const response = await fetch("/api/study/quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notes, apiKey: geminiApiKey })
+        body: JSON.stringify({ notes, apiKey: geminiApiKey, model: geminiModel })
       });
 
       const data = await response.json();
@@ -466,13 +468,13 @@ function initCareerLab() {
     }
 
     btnAnalyze.disabled = true;
-    btnAnalyze.querySelector("span").textContent = "Analyzing with Gemini AI...";
+    btnAnalyze.querySelector("span").textContent = `Analyzing with ${geminiModel.toUpperCase()}...`;
 
     try {
       const response = await fetch("/api/career/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume, targetRole, jobDescription, apiKey: geminiApiKey })
+        body: JSON.stringify({ resume, targetRole, jobDescription, apiKey: geminiApiKey, model: geminiModel })
       });
 
       const data = await response.json();
@@ -511,7 +513,7 @@ function initCareerLab() {
     }
 
     btnStartInterview.disabled = true;
-    currentQText.textContent = "Generating personalized interview question with Gemini AI...";
+    currentQText.textContent = `Generating interview question with ${geminiModel.toUpperCase()}...`;
     interviewBox.style.display = "block";
     feedbackBox.style.display = "none";
 
@@ -519,7 +521,7 @@ function initCareerLab() {
       const response = await fetch("/api/career/interview", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "start", resume, targetRole, apiKey: geminiApiKey })
+        body: JSON.stringify({ action: "start", resume, targetRole, apiKey: geminiApiKey, model: geminiModel })
       });
 
       const data = await response.json();
@@ -554,7 +556,7 @@ function initCareerLab() {
     }
 
     btnSubmitAnswer.disabled = true;
-    btnSubmitAnswer.querySelector("span").textContent = "Grading Answer with Gemini AI...";
+    btnSubmitAnswer.querySelector("span").textContent = `Grading with ${geminiModel.toUpperCase()}...`;
 
     try {
       const response = await fetch("/api/career/interview", {
@@ -565,7 +567,8 @@ function initCareerLab() {
           question: activeInterviewQuestion,
           answer,
           targetRole,
-          apiKey: geminiApiKey
+          apiKey: geminiApiKey,
+          model: geminiModel
         })
       });
 
@@ -693,15 +696,18 @@ function renderCareerResults(data) {
 }
 
 // -------------------------------------------------------------
-// 6. API Key Synchronization & Persistence
+// 6. API Key & Model Synchronization & Persistence
 // -------------------------------------------------------------
-function updateApiKeyUI(key) {
+function updateApiKeyUI(key, model) {
   geminiApiKey = (key || "").trim();
+  if (model) geminiModel = model.trim();
+
   if (geminiApiKey) {
     localStorage.setItem("smartcampus_gemini_key", geminiApiKey);
   } else {
     localStorage.removeItem("smartcampus_gemini_key");
   }
+  localStorage.setItem("smartcampus_gemini_model", geminiModel);
 
   // Send to backend
   fetch("/api/config/key", {
@@ -714,24 +720,35 @@ function updateApiKeyUI(key) {
   const keyLabel = document.getElementById("keyLabel");
   if (keyLabel) keyLabel.textContent = geminiApiKey ? "KEY ACTIVE" : "API KEY";
 
-  // Update Modal Input
+  const activeModelLabel = document.getElementById("activeModelLabel");
+  if (activeModelLabel) {
+    activeModelLabel.textContent = geminiModel.toUpperCase().replace(/-/g, " ");
+  }
+
+  // Update Modal Inputs
   const modalInput = document.getElementById("geminiApiKeyInput");
   if (modalInput) modalInput.value = geminiApiKey;
+
+  const modalModelSelect = document.getElementById("geminiModelSelect");
+  if (modalModelSelect) modalModelSelect.value = geminiModel;
 
   // Update Study Card Key elements
   const studyInlineInput = document.getElementById("studyInlineKeyInput");
   if (studyInlineInput) studyInlineInput.value = geminiApiKey;
 
+  const studyInlineModelSelect = document.getElementById("studyInlineModelSelect");
+  if (studyInlineModelSelect) studyInlineModelSelect.value = geminiModel;
+
   const studyKeyBtnText = document.getElementById("studyKeyBtnText");
   if (studyKeyBtnText) {
-    studyKeyBtnText.textContent = geminiApiKey ? "Gemini Key: Active" : "Gemini API Key";
+    studyKeyBtnText.textContent = geminiApiKey ? `Key: ${geminiModel.toUpperCase().replace(/-/g, " ")}` : "Gemini API Key";
   }
 
   const statusLabel = document.getElementById("studyAiStatusLabel");
   const statusDot = document.getElementById("studyAiStatusDot");
   if (statusLabel && statusDot) {
     if (geminiApiKey) {
-      statusLabel.textContent = "Live Gemini AI Active";
+      statusLabel.textContent = `Live ${geminiModel.toUpperCase().replace(/-/g, " ")}`;
       statusDot.style.backgroundColor = "var(--emerald)";
       statusDot.style.boxShadow = "0 0 8px rgba(16, 185, 129, 0.7)";
     } else {
@@ -745,16 +762,22 @@ function updateApiKeyUI(key) {
 function initApiKeyModal() {
   const modal = document.getElementById("keyModal");
   const btnOpen = document.getElementById("btnOpenKeyModal");
+  const btnModelBadge = document.getElementById("btnModelBadge");
   const btnClose = document.getElementById("btnCloseKeyModal");
   const btnSave = document.getElementById("btnSaveApiKey");
   const input = document.getElementById("geminiApiKeyInput");
+  const modelSelect = document.getElementById("geminiModelSelect");
 
-  updateApiKeyUI(geminiApiKey);
+  updateApiKeyUI(geminiApiKey, geminiModel);
 
-  btnOpen?.addEventListener("click", () => {
+  const openModal = () => {
     if (input) input.value = geminiApiKey;
+    if (modelSelect) modelSelect.value = geminiModel;
     modal?.classList.add("open");
-  });
+  };
+
+  btnOpen?.addEventListener("click", openModal);
+  btnModelBadge?.addEventListener("click", openModal);
 
   btnClose?.addEventListener("click", () => {
     modal?.classList.remove("open");
@@ -766,9 +789,10 @@ function initApiKeyModal() {
 
   btnSave?.addEventListener("click", () => {
     const key = input ? input.value.trim() : "";
-    updateApiKeyUI(key);
+    const selectedModel = modelSelect ? modelSelect.value : "gemini-2.5-flash";
+    updateApiKeyUI(key, selectedModel);
     modal?.classList.remove("open");
-    showToast(key ? "Gemini API Key Saved & Connected" : "API Key Cleared");
+    showToast(key ? `Connected to ${selectedModel.toUpperCase()}` : "Settings Saved");
   });
 }
 

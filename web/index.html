@@ -37,6 +37,12 @@
           <span class="pulsing-dot"></span>
           <span id="systemStatusText" class="font-mono">CONNECTING</span>
         </div>
+        <button id="btnModelBadge" class="btn btn-secondary btn-sm" title="Active Gemini AI Model">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          <span class="font-mono" id="activeModelLabel">GEMINI 2.5 FLASH</span>
+        </button>
         <button id="btnOpenKeyModal" class="btn btn-secondary btn-sm" title="Configure Gemini API Key">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
@@ -144,13 +150,21 @@
                 <span class="font-mono text-xs" style="font-weight: 600;">ENTER GOOGLE GEMINI API KEY</span>
                 <a href="https://aistudio.google.com/apikey" target="_blank" class="text-xs" style="color: var(--accent); text-decoration: underline;">Get free key at aistudio.google.com</a>
               </div>
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <input type="password" id="studyInlineKeyInput" class="custom-input" placeholder="Paste AIzaSy... key here" style="flex: 1; min-width: 220px; font-size: 0.85rem; padding: 8px 12px;">
-                <button id="btnStudySaveInlineKey" class="btn btn-primary btn-sm" type="button">Save Key</button>
-                <button id="btnStudyClearInlineKey" class="btn btn-secondary btn-sm" type="button">Remove Key</button>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+                <input type="password" id="studyInlineKeyInput" class="custom-input" placeholder="Paste AIzaSy... key here" style="flex: 1; min-width: 200px; font-size: 0.85rem; padding: 8px 12px;">
+                <select id="studyInlineModelSelect" class="custom-select" style="min-width: 175px; font-size: 0.85rem; padding: 8px 12px;">
+                  <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash</option>
+                  <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                  <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                  <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite</option>
+                  <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                  <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                </select>
+                <button id="btnStudySaveInlineKey" class="btn btn-primary btn-sm" type="button">Save</button>
+                <button id="btnStudyClearInlineKey" class="btn btn-secondary btn-sm" type="button">Remove</button>
                 <button id="btnStudyCloseInlineKey" class="btn btn-ghost btn-sm" type="button">Close</button>
               </div>
-              <span class="text-xs text-muted font-mono">* Key is saved securely in your browser and used for live Gemini AI answers and quizzes.</span>
+              <span class="text-xs text-muted font-mono">* Key and chosen model are saved securely in your browser and used for live Gemini AI responses.</span>
             </div>
           </div>
         </div>
@@ -544,11 +558,22 @@
         <label for="geminiApiKeyInput" class="field-label font-mono">GEMINI API KEY</label>
         <input type="password" id="geminiApiKeyInput" class="custom-input" placeholder="AIzaSy...">
       </div>
+      <div class="input-group mb-4">
+        <label for="geminiModelSelect" class="field-label font-mono">GEMINI MODEL</label>
+        <select id="geminiModelSelect" class="custom-select w-full">
+          <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (Recommended - Fastest & Smartest)</option>
+          <option value="gemini-2.5-pro">Gemini 2.5 Pro (Deep Reasoning & Analysis)</option>
+          <option value="gemini-2.0-flash">Gemini 2.0 Flash (Next-Gen Production)</option>
+          <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (High Speed Low Latency)</option>
+          <option value="gemini-1.5-flash">Gemini 1.5 Flash (Stable Legacy)</option>
+          <option value="gemini-1.5-pro">Gemini 1.5 Pro (High Context Legacy)</option>
+        </select>
+      </div>
       <div class="modal-actions">
-        <button id="btnSaveApiKey" class="btn btn-primary w-full">Save Key</button>
+        <button id="btnSaveApiKey" class="btn btn-primary w-full">Save Settings</button>
       </div>
       <p class="modal-note font-mono text-xs text-muted mt-3">
-        * Key is stored in your browser and sent only to your local server.
+        * Key & selected model are stored in your browser and used for live Gemini AI operations.
       </p>
     </div>
   </div>

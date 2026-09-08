@@ -118,6 +118,7 @@ public class SmartCampusApp {
             String question = extractJsonField(body, "question");
             String notes = extractJsonField(body, "notes");
             String apiKey = extractJsonField(body, "apiKey");
+            String model = extractJsonField(body, "model");
             if (apiKey.isBlank()) apiKey = globalGeminiKey;
 
             if (apiKey.isBlank()) {
@@ -131,7 +132,7 @@ public class SmartCampusApp {
                         + "Use clear formatting, bold terms, and structured bullet points.\n\n"
                         + "STUDY NOTES:\n" + (notes.isBlank() ? "No notes provided." : notes) + "\n\n"
                         + "QUESTION:\n" + question;
-                String answer = callGeminiApi(apiKey, prompt);
+                String answer = callGeminiApi(apiKey, prompt, model);
                 sendJsonResponse(exchange, 200, "{\"answer\":\"" + escapeJson(answer) + "\"}");
             } catch (Exception e) {
                 System.err.println("Gemini API call failed: " + e.getMessage());
@@ -154,6 +155,7 @@ public class SmartCampusApp {
             String body = readRequestBody(exchange);
             String notes = extractJsonField(body, "notes");
             String apiKey = extractJsonField(body, "apiKey");
+            String model = extractJsonField(body, "model");
             if (apiKey.isBlank()) apiKey = globalGeminiKey;
 
             if (apiKey.isBlank()) {
@@ -166,7 +168,7 @@ public class SmartCampusApp {
                         + "Respond strictly with valid JSON without markdown code blocks, using this exact structure:\n"
                         + "{\"questions\":[{\"question\":\"question text\",\"options\":[\"option A\",\"option B\",\"option C\",\"option D\"],\"correctAnswerIndex\":0,\"explanation\":\"why this answer is correct\"}]}\n\n"
                         + "STUDY NOTES:\n" + (notes.isBlank() ? "Key concepts and technical principles" : notes);
-                String raw = callGeminiApi(apiKey, prompt);
+                String raw = callGeminiApi(apiKey, prompt, model);
                 String responseJson = cleanJsonOutput(raw);
                 sendJsonResponse(exchange, 200, responseJson);
             } catch (Exception e) {
@@ -192,6 +194,7 @@ public class SmartCampusApp {
             String targetRole = extractJsonField(body, "targetRole");
             String jobDescription = extractJsonField(body, "jobDescription");
             String apiKey = extractJsonField(body, "apiKey");
+            String model = extractJsonField(body, "model");
             if (apiKey.isBlank()) apiKey = globalGeminiKey;
 
             if (apiKey.isBlank()) {
@@ -225,7 +228,7 @@ public class SmartCampusApp {
                         + "}\n\n"
                         + "RESUME:\n" + resume + "\n\n"
                         + "JOB DESCRIPTION:\n" + (jobDescription.isBlank() ? "Standard requirements for " + targetRole : jobDescription);
-                String raw = callGeminiApi(apiKey, prompt);
+                String raw = callGeminiApi(apiKey, prompt, model);
                 String responseJson = cleanJsonOutput(raw);
                 sendJsonResponse(exchange, 200, responseJson);
             } catch (Exception e) {
@@ -253,6 +256,7 @@ public class SmartCampusApp {
             String question = extractJsonField(body, "question");
             String answer = extractJsonField(body, "answer");
             String apiKey = extractJsonField(body, "apiKey");
+            String model = extractJsonField(body, "model");
             if (apiKey.isBlank()) apiKey = globalGeminiKey;
 
             if (apiKey.isBlank()) {
@@ -263,7 +267,7 @@ public class SmartCampusApp {
             if ("start".equalsIgnoreCase(action)) {
                 try {
                     String prompt = "Generate a single challenging technical interview question for a candidate applying for: " + targetRole + " with this resume:\n" + resume;
-                    String questionText = callGeminiApi(apiKey, prompt);
+                    String questionText = callGeminiApi(apiKey, prompt, model);
                     sendJsonResponse(exchange, 200, "{\"question\":\"" + escapeJson(questionText.trim()) + "\"}");
                 } catch (Exception e) {
                     sendJsonResponse(exchange, 200, "{\"error\":\"Gemini API Error: " + escapeJson(e.getMessage()) + "\"}");
@@ -275,7 +279,7 @@ public class SmartCampusApp {
                             + "Question: " + question + "\n"
                             + "Candidate Answer: " + answer + "\n\n"
                             + "Evaluate the answer. Respond strictly with JSON: {\"score\":\"8.5\",\"feedback\":\"2-3 sentences of feedback and technical improvements\"}";
-                    String raw = callGeminiApi(apiKey, prompt);
+                    String raw = callGeminiApi(apiKey, prompt, model);
                     sendJsonResponse(exchange, 200, cleanJsonOutput(raw));
                 } catch (Exception e) {
                     sendJsonResponse(exchange, 200, "{\"error\":\"Gemini API Error: " + escapeJson(e.getMessage()) + "\"}");
@@ -304,13 +308,25 @@ public class SmartCampusApp {
     // =========================================================================
     // Google Gemini REST API Client (Standard java.net.http.HttpClient)
     // =========================================================================
-    private static String callGeminiApi(String apiKey, String prompt) throws Exception {
-        // Supports current production Gemini models with automatic candidate fallback
-        String[] candidateModels = {
-            "gemini-1.5-flash",
+    private static String callGeminiApi(String apiKey, String prompt, String preferredModel) throws Exception {
+        List<String> candidateModels = new ArrayList<>();
+        if (preferredModel != null && !preferredModel.isBlank()) {
+            candidateModels.add(preferredModel.trim());
+        }
+        // Modern updated models prioritizing Gemini 2.5 and 2.0 with backward compatibility
+        String[] defaults = {
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
             "gemini-2.0-flash",
+            "gemini-2.0-flash-lite",
+            "gemini-1.5-flash",
             "gemini-1.5-pro"
         };
+        for (String m : defaults) {
+            if (!candidateModels.contains(m)) {
+                candidateModels.add(m);
+            }
+        }
         Exception lastException = null;
 
         String payload = "{"
@@ -326,7 +342,7 @@ public class SmartCampusApp {
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(endpoint))
                         .header("Content-Type", "application/json")
-                        .timeout(Duration.ofSeconds(15))
+                        .timeout(Duration.ofSeconds(20))
                         .POST(HttpRequest.BodyPublishers.ofString(payload, StandardCharsets.UTF_8))
                         .build();
 
@@ -339,15 +355,15 @@ public class SmartCampusApp {
                         return unescapeJson(matcher.group(1));
                     }
                     return "Response received from Gemini.";
-                } else if (response.statusCode() == 404) {
-                    lastException = new RuntimeException("Gemini HTTP 404 on " + model);
+                } else if (response.statusCode() == 404 || response.body().contains("NOT_FOUND")) {
+                    lastException = new RuntimeException("Gemini model unavailable: " + model + " (" + response.body() + ")");
                     continue;
                 } else {
                     throw new RuntimeException("Gemini HTTP " + response.statusCode() + ": " + response.body());
                 }
             } catch (Exception ex) {
                 lastException = ex;
-                if (ex.getMessage() != null && ex.getMessage().contains("404")) {
+                if (ex.getMessage() != null && (ex.getMessage().contains("404") || ex.getMessage().contains("NOT_FOUND"))) {
                     continue;
                 }
                 throw ex;
