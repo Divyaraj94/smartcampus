@@ -201,23 +201,45 @@ public class SmartCampusApp {
             String body = readRequestBody(exchange);
             String resume = extractJsonField(body, "resume");
             String targetRole = extractJsonField(body, "targetRole");
+            String jobDescription = extractJsonField(body, "jobDescription");
             String apiKey = extractJsonField(body, "apiKey");
             if (apiKey.isBlank()) apiKey = globalGeminiKey;
 
             String responseJson;
             if (!apiKey.isBlank()) {
                 try {
-                    String prompt = "You are a senior tech recruiter and placement director. Analyze this candidate resume for the target job role: " + targetRole + ".\n"
-                            + "Respond strictly in valid JSON format without markdown code blocks:\n"
-                            + "{\"score\": 85, \"summary\": \"2 sentence assessment\", \"matchedSkills\": [\"Java\", \"SQL\"], \"missingSkills\": [\"Docker\", \"Kafka\"], \"roadmap\": [\"Step 1\", \"Step 2\", \"Step 3\"]}\n\n"
-                            + "RESUME:\n" + resume;
+                    String prompt = "You are an expert tech recruiter, ATS specialist, and senior hiring manager. "
+                            + "Analyze this candidate resume against the Target Role: '" + targetRole + "' and Job Description: '" + jobDescription + "'.\n"
+                            + "Respond strictly with valid JSON without markdown code blocks using this exact format:\n"
+                            + "{\n"
+                            + "  \"score\": 85,\n"
+                            + "  \"atsScore\": 82,\n"
+                            + "  \"breakdown\": {\"keywords\": 78, \"impact\": 74, \"formatting\": 92},\n"
+                            + "  \"summary\": \"2-3 sentence executive assessment\",\n"
+                            + "  \"matchedSkills\": [\"Skill1\", \"Skill2\"],\n"
+                            + "  \"missingSkills\": [\"SkillA\", \"SkillB\"],\n"
+                            + "  \"atsKeywords\": [\"Keyword1\", \"Keyword2\", \"Keyword3\", \"Keyword4\"],\n"
+                            + "  \"bulletRewrites\": [\n"
+                            + "    {\"original\": \"generic bullet from resume\", \"improved\": \"STAR formatted bullet with metrics and strong action verbs\", \"rationale\": \"explanation\"}\n"
+                            + "  ],\n"
+                            + "  \"studyGuide\": {\n"
+                            + "    \"coreTopics\": [\"topic 1\", \"topic 2\"],\n"
+                            + "    \"systemDesign\": [\"design concept 1\", \"design concept 2\"],\n"
+                            + "    \"interviewQuestions\": [\n"
+                            + "      {\"question\": \"question text\", \"tip\": \"what the interviewer evaluates\"}\n"
+                            + "    ]\n"
+                            + "  },\n"
+                            + "  \"roadmap\": [\"step 1\", \"step 2\", \"step 3\"]\n"
+                            + "}\n\n"
+                            + "RESUME:\n" + resume + "\n\n"
+                            + "JOB DESCRIPTION:\n" + (jobDescription.isBlank() ? "Standard requirements for " + targetRole : jobDescription);
                     String raw = callGeminiApi(apiKey, prompt);
                     responseJson = cleanJsonOutput(raw);
                 } catch (Exception e) {
-                    responseJson = generateHeuristicCareerJson(resume, targetRole);
+                    responseJson = generateHeuristicCareerJson(resume, targetRole, jobDescription);
                 }
             } else {
-                responseJson = generateHeuristicCareerJson(resume, targetRole);
+                responseJson = generateHeuristicCareerJson(resume, targetRole, jobDescription);
             }
 
             sendJsonResponse(exchange, 200, responseJson);
@@ -412,35 +434,101 @@ public class SmartCampusApp {
                 + "}";
     }
 
-    private static String generateHeuristicCareerJson(String resume, String targetRole) {
+    private static String generateHeuristicCareerJson(String resume, String targetRole, String jobDescription) {
         String lowerResume = resume.toLowerCase();
-        int score = 75;
+        String lowerJd = (jobDescription + " " + targetRole).toLowerCase();
+        int score = 76;
+        int keywordScore = 72;
+        int impactScore = 70;
+        int formatScore = 90;
+
         List<String> matched = new ArrayList<>();
         List<String> missing = new ArrayList<>();
+        List<String> atsKeywords = new ArrayList<>();
 
-        // Match Core Skills
-        if (lowerResume.contains("java")) { matched.add("Core Java (OOP & Collections)"); score += 5; }
-        if (lowerResume.contains("spring")) { matched.add("Spring Boot & REST APIs"); score += 6; }
-        if (lowerResume.contains("sql") || lowerResume.contains("mysql")) { matched.add("Relational Databases (SQL)"); score += 4; }
-        if (lowerResume.contains("git")) { matched.add("Version Control (Git/GitHub)"); score += 3; }
-        if (lowerResume.contains("docker")) { matched.add("Containerization (Docker)"); score += 4; }
+        // Core Skills matching
+        if (lowerResume.contains("java")) { matched.add("Java 17/21 & OOP Principles"); score += 4; keywordScore += 5; }
+        if (lowerResume.contains("spring")) { matched.add("Spring Boot & RESTful Services"); score += 4; keywordScore += 5; }
+        if (lowerResume.contains("sql") || lowerResume.contains("mysql") || lowerResume.contains("postgres")) { matched.add("Relational Databases (SQL & Indexing)"); score += 3; keywordScore += 4; }
+        if (lowerResume.contains("git")) { matched.add("Version Control & Git Workflows"); score += 2; keywordScore += 3; }
+        if (lowerResume.contains("docker")) { matched.add("Containerization (Docker)"); score += 3; keywordScore += 3; }
+        if (lowerResume.contains("data structures") || lowerResume.contains("algorithm") || lowerResume.contains("leetcode")) { matched.add("Data Structures & Algorithms (DSA)"); score += 3; keywordScore += 4; }
 
-        if (!lowerResume.contains("kafka")) missing.add("Event-Driven Architecture (Apache Kafka)");
-        if (!lowerResume.contains("docker")) missing.add("Microservice Deployment (Docker/K8s)");
-        if (!lowerResume.contains("redis")) missing.add("Distributed In-Memory Caching (Redis)");
-        if (!lowerResume.contains("aws") && !lowerResume.contains("cloud")) missing.add("Cloud Infrastructure (AWS/GCP)");
+        // ATS Keywords detection from JD
+        if (lowerJd.contains("kafka") && !lowerResume.contains("kafka")) {
+            missing.add("Event Streaming (Apache Kafka)");
+            atsKeywords.add("Apache Kafka");
+        }
+        if (lowerJd.contains("redis") && !lowerResume.contains("redis")) {
+            missing.add("Distributed In-Memory Caching (Redis)");
+            atsKeywords.add("Redis Cache");
+        }
+        if ((lowerJd.contains("microservice") || lowerJd.contains("microservices")) && !lowerResume.contains("microservice")) {
+            missing.add("Microservices Architecture & Resiliency");
+            atsKeywords.add("Microservices Design");
+        }
+        if ((lowerJd.contains("docker") || lowerJd.contains("kubernetes") || lowerJd.contains("ci/cd")) && !lowerResume.contains("kubernetes")) {
+            missing.add("Cloud Orchestration & CI/CD Pipelines");
+            atsKeywords.add("CI/CD Automation");
+        }
+        if (lowerJd.contains("system design") && !lowerResume.contains("system design")) {
+            missing.add("High-Level & Low-Level System Design (HLD/LLD)");
+            atsKeywords.add("System Design (HLD/LLD)");
+        }
+        if (atsKeywords.isEmpty()) {
+            atsKeywords.addAll(List.of("Distributed Transactions", "Kafka Event Bus", "Redis Caching", "Virtual Threads (Java 21)", "Resilience4j Circuit Breaker"));
+        }
 
         if (score > 92) score = 92;
+        int atsOverall = (int) Math.round((keywordScore * 0.45) + (impactScore * 0.35) + (formatScore * 0.20));
 
         return "{"
                 + "\"score\": " + score + ","
-                + "\"summary\": \"Strong foundational alignment for " + escapeJson(targetRole) + ". Excellent core language mastery with high placement potential.\","
+                + "\"atsScore\": " + atsOverall + ","
+                + "\"breakdown\": {"
+                + "  \"keywords\": " + keywordScore + ","
+                + "  \"impact\": " + impactScore + ","
+                + "  \"formatting\": " + formatScore
+                + "},"
+                + "\"summary\": \"Profile demonstrates solid foundational engineering in Java and backend concepts for " + escapeJson(targetRole) + ". Adding critical high-throughput keywords will boost your ATS pass rate above 90%.\","
                 + "\"matchedSkills\": [\"" + String.join("\", \"", matched) + "\"],"
-                + "\"missingSkills\": [\"" + String.join("\", \"", missing) + "\"],"
+                + "\"missingSkills\": [\"" + String.join("\", \"", missing.isEmpty() ? List.of("Apache Kafka", "Redis Caching", "Kubernetes") : missing) + "\"],"
+                + "\"atsKeywords\": [\"" + String.join("\", \"", atsKeywords) + "\"],"
+                + "\"bulletRewrites\": ["
+                + "  {"
+                + "    \"original\": \"Built checkout and order processing services with JWT authentication.\","
+                + "    \"improved\": \"Architected distributed checkout and payment services in Java 21/Spring Boot with JWT auth, processing 5,000+ orders with 99.9% uptime.\","
+                + "    \"rationale\": \"Replaces passive description with quantifiable metrics (5,000+ orders, 99.9% uptime) and strong action verb 'Architected'.\""
+                + "  },"
+                + "  {"
+                + "    \"original\": \"Designed relational database schemas in MySQL handling 5,000+ orders.\","
+                + "    \"improved\": \"Engineered normalized MySQL schema with B-Tree indexes and connection pooling, reducing query response times by 32% under load.\","
+                + "    \"rationale\": \"Highlights database optimization keywords (indexing, connection pooling) and measured speed improvement.\""
+                + "  }"
+                + "],"
+                + "\"studyGuide\": {"
+                + "  \"coreTopics\": ["
+                + "    \"Java 21 Concurrency: Virtual Threads (Project Loom) vs OS Platform Threads, ThreadPoolExecutor\","
+                + "    \"JVM Performance: G1GC vs ZGC, Heap dump analysis, and Memory Leak troubleshooting\","
+                + "    \"Database Optimization: Composite Indexes, Isolation Levels (ACID), and N+1 Query resolution in Hibernate/JPA\""
+                + "  ],"
+                + "  \"systemDesign\": ["
+                + "    \"High-Throughput Caching: Cache-Aside vs Write-Through patterns with Redis & TTL eviction\","
+                + "    \"Asynchronous Event Streaming: Kafka Partitions, Consumer Groups, and Exactly-Once Semantics\","
+                + "    \"Microservices Resiliency: Circuit Breakers (Resilience4j), Rate Limiting (Token Bucket), and API Gateways\""
+                + "  ],"
+                + "  \"interviewQuestions\": ["
+                + "    {\"question\": \"How do Virtual Threads in Java 21 improve server throughput compared to traditional thread-per-request models?\", \"tip\": \"Explain how carrier threads unmount blocking I/O tasks, enabling millions of concurrent threads without memory exhaustion.\"},"
+                + "    {\"question\": \"How would you handle a distributed transaction across multiple microservices without using a two-phase commit (2PC)?\", \"tip\": \"Describe the Saga Pattern (Choreography vs Orchestration) with compensating transactions for eventual consistency.\"},"
+                + "    {\"question\": \"What causes the N+1 problem in Spring Data JPA, and what are the two best ways to solve it?\", \"tip\": \"Mention JOIN FETCH in JPQL queries and using @EntityGraph to load associations in a single SQL query.\"},"
+                + "    {\"question\": \"Explain the difference between optimistic locking and pessimistic locking with a real banking scenario.\", \"tip\": \"Use @Version attribute for optimistic concurrency and SELECT ... FOR UPDATE for pessimistic lock on critical balances.\"},"
+                + "    {\"question\": \"Design an idempotent payment API endpoint in Spring Boot.\", \"tip\": \"Explain using an Idempotency-Key header stored in Redis with atomic SETNX before charging the customer.\"}"
+                + "  ]"
+                + "},"
                 + "\"roadmap\": ["
-                + "  \"Integrate Redis caching into your Spring Boot endpoints to demonstrate low-latency optimization in interviews.\","
-                + "  \"Add Docker compose files to your GitHub project to showcase containerized deployment readiness.\","
-                + "  \"Practice System Design problems (URL Shortener, Rate Limiter) to excel in campus technical rounds.\""
+                + "  \"Inject the missing ATS keywords into your Project descriptions before submitting on company portals.\","
+                + "  \"Implement an Idempotent API with Redis in your Spring Boot portfolio project to showcase in interviews.\","
+                + "  \"Review the 5 High-Probability Interview Questions and rehearse the STAR format answers.\""
                 + "]"
                 + "}";
     }

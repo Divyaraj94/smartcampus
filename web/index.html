@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SmartCampus AI — Academic & Career Intelligence</title>
-  <meta name="description" content="AI-powered campus intelligence platform for document Q&A, exam flashcards, resume skill analysis, and technical mock interviews.">
+  <meta name="description" content="AI-powered campus intelligence platform for document Q&A, exam flashcards, resume skill analysis, ATS keyword matching, and technical mock interviews.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Calistoga&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -61,7 +62,7 @@
       </h1>
 
       <p class="hero-subtext">
-        An integrated AI intelligence suite for students and faculty. Ingest lecture notes for contextual Q&A, generate instant exam quizzes, and perform automated resume gap analysis for campus placements.
+        An integrated AI intelligence suite for students and faculty. Ingest lecture notes for contextual Q&A, generate instant exam quizzes, and perform automated ATS resume parsing, keyword optimization, and interview preparation.
       </p>
 
       <!-- Navigation Tabs -->
@@ -206,10 +207,10 @@
             <div>
               <div class="section-label mb-2">
                 <span class="label-dot"></span>
-                <span>PLACEMENT INTELLIGENCE</span>
+                <span>PLACEMENT INTELLIGENCE & ATS SUITE</span>
               </div>
-              <h2 class="card-title font-display">Resume Match & Skill Gap Radar</h2>
-              <p class="card-desc">Compare student profile against real tech roles to evaluate match percentage, identify blindspots, and prepare for campus interviews.</p>
+              <h2 class="card-title font-display">Resume Analyzer & Job Description Matcher</h2>
+              <p class="card-desc">Upload your resume (PDF/TXT) and match it against any job description to evaluate your ATS pass probability, detect missing keywords, optimize bullet points, and unlock a pre-interview study guide.</p>
             </div>
             <div class="card-tools">
               <button id="btnLoadSampleResume" class="btn btn-secondary btn-sm">
@@ -222,31 +223,64 @@
             </div>
           </div>
 
-          <div class="grid-2col gap-6 mb-4">
-            <div>
-              <label for="careerTargetRole" class="field-label font-mono">TARGET JOB ROLE</label>
-              <select id="careerTargetRole" class="custom-select">
-                <option value="Java Backend Developer (Spring Boot, REST, SQL, Microservices)">Java Backend Developer (Spring Boot, SQL, Microservices)</option>
-                <option value="Full Stack Software Engineer (Java, JavaScript, React/HTML, System Design)">Full Stack Software Engineer (Java, JS, System Design)</option>
-                <option value="Cloud & DevOps Engineer (Java, Docker, Kubernetes, CI/CD, AWS)">Cloud & DevOps Engineer (Java, Docker, CI/CD, AWS)</option>
-                <option value="AI & Machine Learning Engineer (Java, Python, LLMs, RAG, Data Structures)">AI & Machine Learning Engineer (LLMs, RAG, DSA)</option>
-              </select>
+          <!-- Drag and Drop Resume Upload Zone -->
+          <div class="dropzone-container mb-4" id="resumeDropzone">
+            <input type="file" id="resumeFileInput" accept=".pdf,.txt" class="hidden-file-input">
+            <div class="dropzone-content" id="dropzoneContent">
+              <div class="dropzone-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              </div>
+              <div>
+                <p class="dropzone-main"><strong>Click to upload</strong> or drag & drop your Resume</p>
+                <p class="dropzone-sub text-muted text-xs">Supports PDF or TXT format (auto-parsed in browser)</p>
+              </div>
             </div>
-
-            <div>
-              <label for="careerStudentDegree" class="field-label font-mono">TARGET PLACEMENT DRIVE</label>
-              <input type="text" id="careerStudentDegree" class="custom-input" value="B.Tech Computer Science / Information Tech - 2026 Batch">
+            <div id="fileUploadStatus" class="file-status-pill" style="display: none;">
+              <span class="file-status-icon">📄</span>
+              <span id="uploadedFileName" class="font-mono text-xs">resume.pdf</span>
+              <span id="uploadedFilePages" class="font-mono text-xs text-muted"></span>
+              <button type="button" id="btnRemoveFile" class="btn-icon text-xs" title="Remove file">&times;</button>
             </div>
           </div>
 
+          <!-- Target Role & Presets -->
+          <div class="mb-4">
+            <label for="careerTargetRole" class="field-label font-mono">TARGET JOB ROLE</label>
+            <input type="text" id="careerTargetRole" class="custom-input mb-2" value="Java Backend Developer (Spring Boot, REST, Microservices)">
+            <div class="quick-chips">
+              <span class="chip-label font-mono">Role Presets:</span>
+              <button class="chip role-chip" data-role="Google SDE-1 (Java, Distributed Systems, High Throughput)" data-jd="Google SDE 1 Requirements: Strong core Java 17/21, Spring Boot, Object-Oriented Design, Distributed Caching (Redis), Apache Kafka event streaming, Docker containers, High-Level System Design, and Data Structures & Algorithms.">Google SDE-1</button>
+              <button class="chip role-chip" data-role="Amazon SDE Backend (Java, AWS, Microservices, Resiliency)" data-jd="Amazon Backend Engineer: Build high-scale services using Java, Spring Boot, Microservices, AWS cloud, DynamoDB/MySQL, and Circuit Breakers (Resilience4j). Demonstrated experience in optimizing SQL queries and thread pooling.">Amazon SDE</button>
+              <button class="chip role-chip" data-role="FinTech Microservices Architect (Java 21, Low Latency, Kafka)" data-jd="FinTech Core Backend: Ultra low-latency transaction processing, Virtual Threads, ConcurrentHashMap, Kafka event bus, distributed ACID transactions, Redis cache, and CI/CD Kubernetes deployment.">FinTech Backend</button>
+              <button class="chip role-chip" data-role="Full Stack Software Engineer (Java, React, System Design)" data-jd="Full Stack Developer: Java Spring Boot REST APIs, relational databases, Docker, React or modern JavaScript, JWT authentication, and scalable web architectures.">Full Stack</button>
+            </div>
+          </div>
+
+          <!-- Job Description Input -->
           <div class="input-group mb-4">
-            <label for="careerResumeInput" class="field-label font-mono">RESUME TEXT & SKILLSET</label>
-            <textarea id="careerResumeInput" class="custom-textarea" rows="6" placeholder="Paste your resume summary, technical skills, projects, and certifications here..."></textarea>
+            <div class="flex-between">
+              <label for="careerJdInput" class="field-label font-mono">JOB DESCRIPTION (JD) & REQUIRED QUALIFICATIONS</label>
+              <span class="text-xs text-muted">Paste real LinkedIn / Campus job posting</span>
+            </div>
+            <textarea id="careerJdInput" class="custom-textarea" rows="3" placeholder="Paste the employer's Job Description (JD) here to match against required skills, tech stack, and keywords..."></textarea>
+          </div>
+
+          <!-- Extracted Resume Text (Editable / Expandable) -->
+          <div class="input-group mb-4">
+            <div class="flex-between">
+              <label for="careerResumeInput" class="field-label font-mono">PARSED RESUME TEXT & SKILLS</label>
+              <span id="resumeWordCount" class="font-mono text-xs text-muted">0 words</span>
+            </div>
+            <textarea id="careerResumeInput" class="custom-textarea" rows="5" placeholder="Resume text will appear here automatically when uploaded, or you can paste text directly..."></textarea>
           </div>
 
           <div class="actions-right">
             <button id="btnAnalyzeResume" class="btn btn-primary btn-lg">
-              <span>Run Career & Gap Analysis</span>
+              <span>Run ATS & Placement Intelligence</span>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8"/>
                 <line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -258,12 +292,13 @@
 
       <!-- Analysis Results Container -->
       <div id="careerResultsContainer" class="career-results mb-8" style="display: none;">
+        <!-- ATS Score Overview Grid -->
         <div class="grid-3col gap-6 mb-6">
-          <!-- Radial Score Card -->
+          <!-- Radial Score Card with Sub-Gauges -->
           <div class="card text-center flex-center-col">
             <div class="section-label mb-2">
               <span class="label-dot"></span>
-              <span>READINESS SCORE</span>
+              <span>ATS READINESS SCORE</span>
             </div>
             <div class="score-radial">
               <svg width="140" height="140" viewBox="0 0 140 140">
@@ -271,12 +306,33 @@
                 <circle id="scoreProgressCircle" class="score-bar" cx="70" cy="70" r="58" stroke-width="10" stroke-dasharray="364.4" stroke-dashoffset="100"/>
               </svg>
               <div class="score-content">
-                <span id="scoreNumber" class="score-val font-display">82%</span>
-                <span class="score-sub font-mono">MATCH</span>
+                <span id="scoreNumber" class="score-val font-display">84%</span>
+                <span class="score-sub font-mono">ATS PASS</span>
               </div>
             </div>
             <h4 id="scoreHeadline" class="font-display mt-2">Strong Candidate</h4>
-            <p id="scoreSubtitle" class="text-muted text-sm">Profile aligns with 8 out of 10 primary competencies.</p>
+            <p id="scoreSubtitle" class="text-muted text-xs mb-3">Calculated against target job requirements.</p>
+
+            <!-- Sub-Meters -->
+            <div class="sub-meters-box w-full">
+              <div class="sub-meter-row">
+                <span class="font-mono text-xs">Keyword Match</span>
+                <span id="subKeywordsScore" class="font-mono text-xs font-semibold text-accent">88%</span>
+              </div>
+              <div class="meter-track"><div id="meterKeywordsBar" class="meter-fill" style="width: 88%;"></div></div>
+
+              <div class="sub-meter-row mt-2">
+                <span class="font-mono text-xs">Metric Impact</span>
+                <span id="subImpactScore" class="font-mono text-xs font-semibold text-emerald">75%</span>
+              </div>
+              <div class="meter-track"><div id="meterImpactBar" class="meter-fill bg-emerald" style="width: 75%;"></div></div>
+
+              <div class="sub-meter-row mt-2">
+                <span class="font-mono text-xs">Formatting & ATS Parse</span>
+                <span id="subFormatScore" class="font-mono text-xs font-semibold text-fg">92%</span>
+              </div>
+              <div class="meter-track"><div id="meterFormatBar" class="meter-fill bg-fg" style="width: 92%;"></div></div>
+            </div>
           </div>
 
           <!-- Matched Skills -->
@@ -286,7 +342,7 @@
               <span>VERIFIED COMPETENCIES</span>
             </div>
             <h3 class="card-title font-display text-emerald">Matched Skills</h3>
-            <p class="card-desc">Skills present on your resume that match the job profile:</p>
+            <p class="card-desc">Keywords present on your resume matching the JD:</p>
             <div id="matchedSkillsList" class="skill-badges mt-4">
               <!-- Rendered dynamically -->
             </div>
@@ -299,14 +355,95 @@
               <span>GROWTH OPPORTUNITIES</span>
             </div>
             <h3 class="card-title font-display text-amber">Skill Gaps</h3>
-            <p class="card-desc">Crucial keywords expected for this role not found on your profile:</p>
+            <p class="card-desc">Critical employer keywords missing from your resume:</p>
             <div id="missingSkillsList" class="skill-badges mt-4">
               <!-- Rendered dynamically -->
             </div>
           </div>
         </div>
 
-        <!-- Recommendations Banner -->
+        <!-- ATS Missing Keywords Bar -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <div>
+              <div class="section-label mb-2">
+                <span class="label-dot"></span>
+                <span>ATS KEYWORD INJECTION</span>
+              </div>
+              <h3 class="card-title font-display">High-Priority Keywords to Add to Your Resume</h3>
+              <p class="card-desc">Inject these exact keyword phrases into your project bullet points to pass automated applicant tracking systems.</p>
+            </div>
+            <button id="btnCopyAtsKeywords" class="btn btn-secondary btn-sm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+              <span>Copy All Keywords</span>
+            </button>
+          </div>
+          <div id="atsKeywordsList" class="skill-badges mt-2">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Resume Bullet Optimizer (Before vs After) -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <div>
+              <div class="section-label mb-2">
+                <span class="label-dot"></span>
+                <span>ACTION BULLET POLISH</span>
+              </div>
+              <h3 class="card-title font-display">Resume Bullet Point Rewrites (STAR Format)</h3>
+              <p class="card-desc">Transform generic descriptions into quantifiable, high-impact achievements that catch recruiter attention.</p>
+            </div>
+          </div>
+          <div id="bulletRewritesContainer" class="bullet-rewrites-grid">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <!-- Pre-Interview Study Guide (What to study before interview!) -->
+        <div class="card mb-6">
+          <div class="card-header">
+            <div>
+              <div class="section-label mb-2">
+                <span class="label-dot"></span>
+                <span>PRE-INTERVIEW MASTERCLASS</span>
+              </div>
+              <h3 class="card-title font-display">What to Study Before Your Interview</h3>
+              <p class="card-desc">A customized revision checklist prioritized specifically for this role and company requirements.</p>
+            </div>
+          </div>
+
+          <div class="grid-2col gap-6 mt-4">
+            <!-- Core CS & Java Topics -->
+            <div class="study-box">
+              <div class="font-mono text-xs text-accent font-semibold mb-2">📚 CORE JAVA & CONCURRENCY CONCEPTS</div>
+              <ul id="studyCoreTopicsList" class="study-list">
+                <!-- Rendered dynamically -->
+              </ul>
+            </div>
+
+            <!-- System Design & Architecture -->
+            <div class="study-box">
+              <div class="font-mono text-xs text-emerald font-semibold mb-2">⚙️ SYSTEM DESIGN & ARCHITECTURE FOCUS</div>
+              <ul id="studySystemDesignList" class="study-list">
+                <!-- Rendered dynamically -->
+              </ul>
+            </div>
+          </div>
+
+          <!-- Top 5 Likely Interview Questions -->
+          <div class="mt-6">
+            <div class="font-mono text-xs text-fg font-semibold mb-3">🎯 TOP 5 TARGETED TECHNICAL INTERVIEW QUESTIONS:</div>
+            <div id="studyQuestionsList" class="interview-qa-grid">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Strategic Placement Roadmap -->
         <div class="card mb-6">
           <div class="card-header">
             <div>
@@ -314,7 +451,7 @@
                 <span class="label-dot"></span>
                 <span>STRATEGIC ROADMAP</span>
               </div>
-              <h3 class="card-title font-display">Actionable Placement Roadmap</h3>
+              <h3 class="card-title font-display">30-Day Placement Execution Plan</h3>
             </div>
           </div>
           <div id="careerRoadmapContent" class="roadmap-steps">

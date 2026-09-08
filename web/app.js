@@ -1,11 +1,12 @@
-/**
- * SmartCampus AI — Client Controller
- * Minimalist Modern Frontend interactions & Java Backend REST connector
- */
-
 // State
 let geminiApiKey = localStorage.getItem("smartcampus_gemini_key") || "";
 let activeInterviewQuestion = "";
+let currentAtsKeywords = [];
+
+// Initialize PDF.js worker
+if (window.pdfjsLib) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+}
 
 // Sample Data for Instant Evaluation & Demo
 const SAMPLE_JAVA_NOTES = `MODULE 1: OBJECT-ORIENTED PROGRAMMING IN JAVA
@@ -53,6 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initSampleData();
   initStudyHub();
   initCareerLab();
+  initResumeFileUpload();
   initApiKeyModal();
   checkBackendHealth();
 });
@@ -109,8 +111,11 @@ function initSampleData() {
 
   document.getElementById("btnLoadSampleResume")?.addEventListener("click", () => {
     resumeInput.value = SAMPLE_STUDENT_RESUME;
+    updateResumeWordCount();
     showToast("Sample Student Resume Loaded!");
   });
+
+  resumeInput?.addEventListener("input", updateResumeWordCount);
 }
 
 function updateWordCount() {
@@ -120,8 +125,122 @@ function updateWordCount() {
   document.getElementById("studyWordCount").textContent = `${words} words · ${chars} characters`;
 }
 
+function updateResumeWordCount() {
+  const text = document.getElementById("careerResumeInput")?.value.trim() || "";
+  const words = text ? text.split(/\s+/).length : 0;
+  const countEl = document.getElementById("resumeWordCount");
+  if (countEl) countEl.textContent = `${words} words`;
+}
+
 // -------------------------------------------------------------
-// 3. Academic Study Hub
+// 3. Resume File Upload (PDF.js + Text Reader)
+// -------------------------------------------------------------
+function initResumeFileUpload() {
+  const dropzone = document.getElementById("resumeDropzone");
+  const fileInput = document.getElementById("resumeFileInput");
+  const resumeInput = document.getElementById("careerResumeInput");
+  const uploadStatus = document.getElementById("fileUploadStatus");
+  const fileNameEl = document.getElementById("uploadedFileName");
+  const filePagesEl = document.getElementById("uploadedFilePages");
+  const btnRemove = document.getElementById("btnRemoveFile");
+
+  if (!dropzone || !fileInput) return;
+
+  dropzone.addEventListener("click", (e) => {
+    if (e.target !== btnRemove && !btnRemove.contains(e.target)) {
+      fileInput.click();
+    }
+  });
+
+  dropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropzone.classList.add("dragover");
+  });
+
+  dropzone.addEventListener("dragleave", () => {
+    dropzone.classList.remove("dragover");
+  });
+
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("dragover");
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleResumeFile(e.dataTransfer.files[0]);
+    }
+  });
+
+  fileInput.addEventListener("change", (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleResumeFile(e.target.files[0]);
+    }
+  });
+
+  btnRemove?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    fileInput.value = "";
+    uploadStatus.style.display = "none";
+    resumeInput.value = "";
+    updateResumeWordCount();
+    showToast("Uploaded resume removed.");
+  });
+
+  async function handleResumeFile(file) {
+    fileNameEl.textContent = file.name;
+    uploadStatus.style.display = "inline-flex";
+
+    if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
+      filePagesEl.textContent = "(Extracting PDF...)";
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let extractedText = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          extractedText += content.items.map(item => item.str).join(" ") + "\n";
+        }
+        resumeInput.value = extractedText.trim();
+        filePagesEl.textContent = `(${pdf.numPages} ${pdf.numPages === 1 ? 'page' : 'pages'})`;
+        updateResumeWordCount();
+        showToast(`Parsed ${pdf.numPages} pages from ${file.name}!`);
+      } catch (err) {
+        alert("Failed to parse PDF file. Make sure it contains readable text.");
+        filePagesEl.textContent = "(Error parsing)";
+      }
+    } else {
+      // Plain text
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        resumeInput.value = event.target.result;
+        filePagesEl.textContent = `(${(file.size / 1024).toFixed(1)} KB)`;
+        updateResumeWordCount();
+        showToast(`Loaded ${file.name}!`);
+      };
+      reader.readAsText(file);
+    }
+  }
+
+  // Role presets chips
+  document.querySelectorAll(".role-chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const role = chip.getAttribute("data-role");
+      const jd = chip.getAttribute("data-jd");
+      document.getElementById("careerTargetRole").value = role;
+      document.getElementById("careerJdInput").value = jd;
+      showToast(`Role preset loaded: ${chip.textContent}`);
+    });
+  });
+
+  // Copy ATS keywords button
+  document.getElementById("btnCopyAtsKeywords")?.addEventListener("click", () => {
+    if (currentAtsKeywords.length === 0) return;
+    navigator.clipboard.writeText(currentAtsKeywords.join(", "));
+    showToast("Copied all ATS keywords to clipboard!");
+  });
+}
+
+// -------------------------------------------------------------
+// 4. Academic Study Hub
 // -------------------------------------------------------------
 function initStudyHub() {
   const askForm = document.getElementById("studyAskForm");
@@ -129,10 +248,13 @@ function initStudyHub() {
   const chatDisplay = document.getElementById("studyChatDisplay");
 
   // Chips click handler
-  document.querySelectorAll(".chip").forEach(chip => {
+  document.querySelectorAll(".chip:not(.role-chip)").forEach(chip => {
     chip.addEventListener("click", () => {
-      questionInput.value = chip.getAttribute("data-question");
-      askForm.requestSubmit();
+      const q = chip.getAttribute("data-question");
+      if (q) {
+        questionInput.value = q;
+        askForm.requestSubmit();
+      }
     });
   });
 
@@ -285,7 +407,7 @@ function renderQuiz(questions) {
 }
 
 // -------------------------------------------------------------
-// 4. Career & Placement Lab
+// 5. Career & Placement Lab (ATS Suite + Study Plan)
 // -------------------------------------------------------------
 function initCareerLab() {
   const btnAnalyze = document.getElementById("btnAnalyzeResume");
@@ -293,22 +415,22 @@ function initCareerLab() {
 
   btnAnalyze.addEventListener("click", async () => {
     const resume = document.getElementById("careerResumeInput").value.trim();
-    const targetRole = document.getElementById("careerTargetRole").value;
-    const degree = document.getElementById("careerStudentDegree").value;
+    const targetRole = document.getElementById("careerTargetRole").value.trim();
+    const jobDescription = document.getElementById("careerJdInput").value.trim();
 
     if (!resume) {
-      alert("Please paste your resume or click 'Load Sample Student Resume' first!");
+      alert("Please upload your resume (PDF/TXT) or click 'Load Sample Student Resume' first!");
       return;
     }
 
     btnAnalyze.disabled = true;
-    btnAnalyze.querySelector("span").textContent = "Analyzing Skill Match...";
+    btnAnalyze.querySelector("span").textContent = "Analyzing ATS Match & Generating Study Plan...";
 
     try {
       const response = await fetch("/api/career/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume, targetRole, degree, apiKey: geminiApiKey })
+        body: JSON.stringify({ resume, targetRole, jobDescription, apiKey: geminiApiKey })
       });
 
       const data = await response.json();
@@ -316,10 +438,10 @@ function initCareerLab() {
       resultsContainer.style.display = "block";
       resultsContainer.scrollIntoView({ behavior: "smooth" });
     } catch (err) {
-      alert("Error analyzing resume. Please ensure Java server is running.");
+      alert("Error analyzing resume. Please ensure Java server is running on port 8080.");
     } finally {
       btnAnalyze.disabled = false;
-      btnAnalyze.querySelector("span").textContent = "Run Career & Gap Analysis";
+      btnAnalyze.querySelector("span").textContent = "Run ATS & Placement Intelligence";
     }
   });
 
@@ -400,9 +522,9 @@ function initCareerLab() {
 
 function renderCareerResults(data) {
   // Score Radial Animation
-  const scoreVal = data.score || 85;
+  const scoreVal = data.atsScore || data.score || 85;
   document.getElementById("scoreNumber").textContent = `${scoreVal}%`;
-  document.getElementById("scoreHeadline").textContent = scoreVal >= 80 ? "Top Tier Candidate" : scoreVal >= 60 ? "Solid Alignment" : "Needs Upskilling";
+  document.getElementById("scoreHeadline").textContent = scoreVal >= 80 ? "High ATS Pass Likelihood" : scoreVal >= 60 ? "Moderate Alignment" : "Needs Keyword Optimization";
   document.getElementById("scoreSubtitle").textContent = data.summary || "Profile evaluation complete.";
 
   const circle = document.getElementById("scoreProgressCircle");
@@ -410,9 +532,20 @@ function renderCareerResults(data) {
   const offset = circumference - (scoreVal / 100) * circumference;
   circle.style.strokeDashoffset = offset;
 
+  // Sub-Meters
+  const breakdown = data.breakdown || { keywords: 85, impact: 75, formatting: 90 };
+  document.getElementById("subKeywordsScore").textContent = `${breakdown.keywords}%`;
+  document.getElementById("meterKeywordsBar").style.width = `${breakdown.keywords}%`;
+
+  document.getElementById("subImpactScore").textContent = `${breakdown.impact}%`;
+  document.getElementById("meterImpactBar").style.width = `${breakdown.impact}%`;
+
+  document.getElementById("subFormatScore").textContent = `${breakdown.formatting}%`;
+  document.getElementById("meterFormatBar").style.width = `${breakdown.formatting}%`;
+
   // Matched Skills
   const matchedList = document.getElementById("matchedSkillsList");
-  matchedList.innerHTML = (data.matchedSkills || ["Core Java", "Spring Boot", "REST APIs", "SQL", "OOP"]).map(s => `
+  matchedList.innerHTML = (data.matchedSkills || ["Core Java", "Spring Boot", "REST APIs", "SQL"]).map(s => `
     <span class="skill-tag skill-tag-emerald">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
       ${s}
@@ -421,19 +554,94 @@ function renderCareerResults(data) {
 
   // Missing Skills
   const missingList = document.getElementById("missingSkillsList");
-  missingList.innerHTML = (data.missingSkills || ["Microservices Resiliency", "Docker CI/CD", "Redis Caching"]).map(s => `
+  missingList.innerHTML = (data.missingSkills || ["Apache Kafka", "Redis Caching", "Docker"]).map(s => `
     <span class="skill-tag skill-tag-amber">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       ${s}
     </span>
   `).join("");
 
+  // ATS Missing Keywords
+  currentAtsKeywords = data.atsKeywords || ["Apache Kafka", "Redis Cache", "Virtual Threads", "System Design"];
+  const atsKeywordsList = document.getElementById("atsKeywordsList");
+  atsKeywordsList.innerHTML = currentAtsKeywords.map(kw => `
+    <span class="skill-tag" style="background: rgba(0, 82, 255, 0.08); border: 1px solid var(--accent-border); color: var(--accent);">
+      <span style="font-weight: 700;">+</span> ${kw}
+    </span>
+  `).join("");
+
+  // Bullet Point Rewrites
+  const bulletBox = document.getElementById("bulletRewritesContainer");
+  const rewrites = data.bulletRewrites || [
+    {
+      original: "Built checkout and order processing services with JWT authentication.",
+      improved: "Architected distributed checkout and payment services in Java 21/Spring Boot with JWT auth, processing 5,000+ orders with 99.9% uptime.",
+      rationale: "Quantified results and replaced passive phrasing with strong action verb 'Architected'."
+    }
+  ];
+  bulletBox.innerHTML = rewrites.map(b => `
+    <div class="bullet-card">
+      <div class="bullet-orig">
+        <span class="font-mono text-xs font-semibold" style="display: block; margin-bottom: 2px;">BEFORE (GENERIC):</span>
+        "${b.original}"
+      </div>
+      <div class="bullet-improved">
+        <span class="font-mono text-xs font-semibold" style="display: block; margin-bottom: 2px;">AFTER (ATS OPTIMIZED & QUANTIFIED):</span>
+        "${b.improved}"
+      </div>
+      <div class="bullet-rationale">💡 <strong>Why this works:</strong> ${b.rationale}</div>
+    </div>
+  `).join("");
+
+  // Pre-Interview Study Guide
+  const studyGuide = data.studyGuide || {};
+  const coreTopicsList = document.getElementById("studyCoreTopicsList");
+  coreTopicsList.innerHTML = (studyGuide.coreTopics || [
+    "Java 21 Concurrency: Virtual Threads vs OS Threads, ThreadPoolExecutor",
+    "JVM Garbage Collection: G1GC vs ZGC tuning and memory leak analysis",
+    "Database Optimization: Composite B-Tree Indexes and Hibernate N+1 issue"
+  ]).map(t => `
+    <li class="study-item">
+      <span class="study-bullet-dot"></span>
+      <span>${t}</span>
+    </li>
+  `).join("");
+
+  const systemDesignList = document.getElementById("studySystemDesignList");
+  systemDesignList.innerHTML = (studyGuide.systemDesign || [
+    "High-Throughput Caching: Cache-Aside vs Write-Through with Redis",
+    "Asynchronous Event Streaming: Kafka partitions, consumer lag, and offsets",
+    "Microservice Resiliency: Resilience4j Circuit Breaker & Rate Limiting"
+  ]).map(t => `
+    <li class="study-item">
+      <span class="study-bullet-dot" style="background: var(--emerald);"></span>
+      <span>${t}</span>
+    </li>
+  `).join("");
+
+  const questionsList = document.getElementById("studyQuestionsList");
+  questionsList.innerHTML = (studyGuide.interviewQuestions || [
+    {
+      question: "How do Virtual Threads in Java 21 improve server throughput compared to traditional thread-per-request models?",
+      tip: "Explain how carrier threads unmount blocking I/O tasks, allowing millions of concurrent tasks."
+    },
+    {
+      question: "How would you handle a distributed transaction across microservices without 2PC?",
+      tip: "Describe the Saga Pattern (Orchestration vs Choreography) with compensating transactions."
+    }
+  ]).map((q, idx) => `
+    <div class="interview-qa-card">
+      <div class="qa-question">Q${idx + 1}: ${q.question}</div>
+      <div class="qa-tip font-mono">💡 <strong>Interviewer Evaluates:</strong> ${q.tip}</div>
+    </div>
+  `).join("");
+
   // Roadmap
   const roadmapBox = document.getElementById("careerRoadmapContent");
   roadmapBox.innerHTML = (data.roadmap || [
-    "Build a production-grade distributed microservice implementing Kafka event streaming.",
+    "Inject the missing ATS keywords into your Project descriptions.",
     "Containerize your Java Spring Boot applications using multi-stage Docker builds.",
-    "Master System Design trade-offs: Caching (Redis), Load Balancing, and Sharding."
+    "Rehearse the STAR format answers for the 5 targeted technical questions."
   ]).map((step, idx) => `
     <div class="roadmap-item">
       <div class="roadmap-step-num font-mono">${idx + 1}</div>
@@ -442,6 +650,7 @@ function renderCareerResults(data) {
       </div>
     </div>
   `).join("");
+}
 }
 
 // -------------------------------------------------------------
