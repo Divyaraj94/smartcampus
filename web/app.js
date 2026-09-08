@@ -189,23 +189,36 @@ function initResumeFileUpload() {
     uploadStatus.style.display = "inline-flex";
 
     if (file.type === "application/pdf" || file.name.endsWith(".pdf")) {
-      filePagesEl.textContent = "(Extracting PDF...)";
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let extractedText = "";
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          extractedText += content.items.map(item => item.str).join(" ") + "\n";
+      if (window.pdfjsLib) {
+        filePagesEl.textContent = "(Extracting PDF...)";
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          let extractedText = "";
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            extractedText += content.items.map(item => item.str).join(" ") + "\n";
+          }
+          resumeInput.value = extractedText.trim();
+          filePagesEl.textContent = `(${pdf.numPages} ${pdf.numPages === 1 ? 'page' : 'pages'})`;
+          updateResumeWordCount();
+          showToast(`Parsed ${pdf.numPages} pages from ${file.name}!`);
+        } catch (err) {
+          alert("Failed to parse PDF file. Make sure it contains readable text.");
+          filePagesEl.textContent = "(Error parsing)";
         }
-        resumeInput.value = extractedText.trim();
-        filePagesEl.textContent = `(${pdf.numPages} ${pdf.numPages === 1 ? 'page' : 'pages'})`;
-        updateResumeWordCount();
-        showToast(`Parsed ${pdf.numPages} pages from ${file.name}!`);
-      } catch (err) {
-        alert("Failed to parse PDF file. Make sure it contains readable text.");
-        filePagesEl.textContent = "(Error parsing)";
+      } else {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const raw = event.target.result;
+          const clean = raw.replace(/[^\x20-\x7E\n\r\t]/g, " ").replace(/\s+/g, " ");
+          resumeInput.value = clean.trim();
+          filePagesEl.textContent = "(Parsed Text)";
+          updateResumeWordCount();
+          showToast(`Loaded ${file.name}!`);
+        };
+        reader.readAsText(file);
       }
     } else {
       // Plain text
@@ -650,7 +663,6 @@ function renderCareerResults(data) {
       </div>
     </div>
   `).join("");
-}
 }
 
 // -------------------------------------------------------------
